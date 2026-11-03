@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Neon Breaker</title>
+<meta name="theme-color" content="#0a0614">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Neon Breaker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="remove-blur" aria-hidden="true"></div>
+<div id="safe-probe" aria-hidden="true"></div>
+
+<main id="app">
+  <section id="screen-title" class="screen">
+    <canvas id="title-canvas"></canvas>
+    <nav class="menu">
+      <button id="btn-play" class="btn primary" type="button"></button>
+      <button id="btn-settings" class="btn" type="button"></button>
+    </nav>
+  </section>
+
+  <section id="screen-settings" class="screen hidden">
+    <header class="hud">
+      <button id="btn-back" class="chip" type="button"></button>
+      <h1 id="settings-title" class="screen-title"></h1>
+    </header>
+    <div class="settings-body">
+      <h3 id="lbl-lang"></h3>
+      <div id="lang-list" class="lang-list"></div>
+      <h3 id="lbl-progress"></h3>
+      <button id="btn-reset" class="btn" type="button"></button>
+    </div>
+  </section>
+
+  <section id="screen-map" class="screen hidden">
+    <header class="hud">
+      <div id="hearts" class="hearts" aria-hidden="true"></div>
+      <div id="life-timer" class="life-timer"></div>
+      <button id="btn-menu" class="chip" type="button"></button>
+    </header>
+    <div id="map-scroll"><svg id="map" role="img" aria-label="Level map"></svg></div>
+  </section>
+
+  <section id="screen-game" class="screen hidden">
+    <canvas id="game"></canvas>
+    <button id="btn-pause" class="pause" type="button" aria-label="Pause">
+      <span></span><span></span>
+    </button>
+  </section>
+
+  <div id="modal" class="modal hidden"><div class="card"></div></div>
+</main>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+:root{
+  --bg:#0a0614;       /* = theme-color */
+  --ink:#fff;
+  --dim:rgba(255,255,255,.6);
+  --neon:#e040ff;
+  --cyan:#5ff;
+  --heart:#ff4fa8;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font:14px/1.4 -apple-system,system-ui,"Segoe UI",sans-serif;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body{position:fixed;inset:0;overflow:hidden}
+
+/* iOS 27 blur fix (see CLAUDE.md): invisible strip, only in standalone mode, colour = theme-color */
+.remove-blur{display:none}
+@media (display-mode: standalone){
+  .remove-blur{display:block;position:fixed;inset:0 0 auto;height:11px;z-index:2147483647;pointer-events:none;
+    background:#0a0614;-webkit-background-clip:text;background-clip:text}
+}
+
+#safe-probe{position:fixed;visibility:hidden;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0}
+
+#app,.screen{position:absolute;inset:0}
+.hidden{display:none!important}
+
+/* ---------- map ---------- */
+#screen-map{background:linear-gradient(#0a0614 0%,#0a0618 40%,#170a2c 100%)}
+.hud{position:absolute;z-index:2;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top) + 8px) 14px 10px;background:linear-gradient(#0a0614 70%,rgba(10,6,20,0))}
+.hearts{display:flex;gap:3px;font-size:18px;line-height:1}
+.hearts span{color:rgba(255,255,255,.18)}
+.hearts span.full{color:var(--heart);text-shadow:0 0 8px var(--heart)}
+.life-timer{flex:1;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.chip{font:500 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.12em;color:var(--ink);background:none;border:1px solid rgba(255,255,255,.35);
+  border-radius:12px;padding:6px 10px;box-shadow:0 0 8px rgba(224,64,255,.35)}
+
+#map-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-top:calc(env(safe-area-inset-top) + 40px)}
+#map{display:block;width:100%;max-width:480px;height:auto;margin:0 auto}
+.node{cursor:pointer}
+.node.lock{cursor:default}
+#map text{font-family:-apple-system,system-ui,sans-serif;pointer-events:none}
+
+/* ---------- game ---------- */
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.pause{position:absolute;top:calc(env(safe-area-inset-top) + 6px);right:12px;width:36px;height:36px;border-radius:50%;
+  background:none;border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;gap:4px;
+  box-shadow:0 0 8px rgba(224,64,255,.35)}
+.pause span{width:2px;height:12px;background:var(--ink);border-radius:1px}
+
+/* ---------- title ---------- */
+#screen-title{background:#0a0614}
+#title-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.menu{position:absolute;left:50%;top:52%;transform:translateX(-50%);width:min(230px,72vw);display:flex;flex-direction:column;gap:14px}
+.menu .btn{background-color:rgba(10,6,20,.88)}
+.menu .btn.primary{background-color:rgba(10,24,32,.9)}
+
+/* ---------- settings ---------- */
+.screen-title{margin:0;flex:1;text-align:right;font-size:13px;font-weight:600;letter-spacing:.25em;text-transform:uppercase}
+#screen-settings{background:linear-gradient(#0a0614,#170a2c)}
+.settings-body{position:absolute;inset:0;padding:calc(env(safe-area-inset-top) + 70px) 22px 24px;max-width:420px;margin:0 auto;overflow-y:auto}
+.settings-body h3{margin:22px 0 10px;font-size:11px;font-weight:500;letter-spacing:.25em;text-transform:uppercase;color:var(--dim)}
+.settings-body .btn{width:100%}
+.lang-list{display:flex;flex-direction:column;gap:10px}
+
+/* ---------- modal ---------- */
+.modal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,3,10,.78);padding:24px}
+.card{width:100%;max-width:320px;padding:26px 22px 20px;text-align:center;border-radius:20px;
+  background:linear-gradient(#150a2a,#0c0620);border:1px solid rgba(224,64,255,.5);
+  box-shadow:0 0 24px rgba(224,64,255,.25),inset 0 0 24px rgba(95,255,255,.05)}
+.card h2{margin:0 0 8px;font-size:15px;font-weight:600;letter-spacing:.2em;text-transform:uppercase}
+.card p{margin:0 0 14px;color:var(--dim)}
+.card p.timer{color:var(--cyan);font-size:13px;letter-spacing:.08em}
+.buttons{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.btn{font:500 13px/1 -apple-system,system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);
+  background:rgba(255,102,255,.1);border:1.3px solid #f6f;border-radius:2px;padding:14px 16px;box-shadow:0 0 8px rgba(255,102,255,.45)}
+.btn.primary{font-size:15px;padding:17px 16px;background:rgba(95,255,255,.15);border-color:var(--cyan);box-shadow:0 0 14px rgba(95,255,255,.6)}
+.btn:active{background:rgba(255,255,255,.18)}
+.btn.sel{border-color:#fff;background:rgba(95,255,255,.2);box-shadow:0 0 14px rgba(95,255,255,.6)}
