@@ -8,6 +8,7 @@ import { t, setLang, getLang, LANGS, DEFAULT_LANG, langName as dictName } from '
 import * as storage from './core/storage.js';
 import * as lives from './core/lives.js';
 import { adProvider } from './core/ads.js';
+import { VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 const state = storage.load(LEVELS.length + 1, LANGS);
@@ -47,6 +48,7 @@ function renderLives() {
 // ---------- static text, title, settings ----------
 function applyText() {
   document.documentElement.lang = getLang();
+  $('version').textContent = VERSION;
   $('btn-play').textContent = t('play');
   $('btn-settings').textContent = t('settings');
   $('btn-back').textContent = '‹ ' + t('back');

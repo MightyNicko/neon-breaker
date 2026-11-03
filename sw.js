@@ -1,10 +1,10 @@
 // Network-first with offline fallback. Bump VERSION to drop old caches on release.
-const VERSION = 'nb-3';
+const VERSION = 'nb-5';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'src/main.js', 'src/core/storage.js', 'src/core/lives.js', 'src/core/i18n.js', 'src/core/ads.js',
-  'src/game/game.js', 'src/game/levels.js', 'src/map/map.js', 'src/map/roads.js', 'src/data/zones.js', 'src/ui/modal.js', 'src/title/title.js',
+  'src/game/game.js', 'src/game/levels.js', 'src/map/map.js', 'src/map/roads.js', 'src/data/zones.js', 'src/ui/modal.js', 'src/title/title.js', 'src/version.js',
   'src/i18n/en.js', 'src/i18n/sv.js',
 ];
 

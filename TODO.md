@@ -13,7 +13,7 @@
 | S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | Spelmekanik | 2 | 2 | Öppen – beslut krävs |
 | S4 | Utmaningsbanor: vissa banor (t.ex. var 10:e) får större ruta på kartan; klara banan på tid för in-game valuta | Spelmekanik | 3 | 3 | Öppen (kräver valuta, jfr M1) |
 | G2 | Klarad bana på kartan: tjockare ram och lysa upp, samma för spåret fram till rutan | Grafik | 2 | 1 | Öppen |
-| U1 | Versionsnummer på förstasidan i formatet v0.1.MMdd.hhmm (kräver stämpel vid release, t.ex. litet skript) | UI | 3 | 1 | Öppen |
+| U1 | Versionsnummer på förstasidan i formatet v0.1.MMdd.hhmm (stämplas automatiskt av en pre-commit-hook) | UI | 3 | 1 | Klar |
 | B1 | Bollen går igenom paddelns sida/underkant (bara ovansidan studsar) | Bug | 1 | 2 | Öppen |
 | B2 | Hörnträff mot två rutor samtidigt ger märkliga studsar (bara en axel vänds) | Bug | 2 | 2 | Öppen |
 | B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | Bug | 1 | 1 | Öppen |
@@ -42,3 +42,4 @@
 | I1 | Jämna ut svårighetskurvan på bana 1–5 (hjärtat 230 rutor vs måltavlan 164) | Innehåll | 2 | 1 | Öppen |
 | I2 | Skriva resterande 75 banor (zon 1–4 à 20) | Innehåll | 3 | 3 | Öppen |
 | U5 | Byt benämningen "upgrades" till "Power-Ups" (i TODO, S1 och all kommande text/kod) | UI | 3 | 1 | Öppen |
+| G10 | Ny hemskärmsikon (modern, ser bra ut på skärmen; ersätter den genererade hexagonikonen). Ska göras före allt annat. Skapas med tools/make-icons.py | Grafik | 1 | 2 | Klar – ikon C (Krossen) |

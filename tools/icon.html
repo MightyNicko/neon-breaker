@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>html,body{margin:0;background:#05030c;overflow:hidden}canvas{display:block}</style>
+<canvas id="c" width="1024" height="1024"></canvas>
+<script>
+// App icon "Krossen": a ball with a light trail smashes a grid of bricks. Drawn at 512 units, rendered at 1024 px.
+const S=512,g=document.getElementById('c').getContext('2d');g.scale(2,2);
+const hsl=(h,s,l,a=1)=>`hsla(${((h%360)+360)%360},${s}%,${l}%,${a})`;
+const bg=g.createRadialGradient(300,330,10,256,300,420);bg.addColorStop(0,'#241048');bg.addColorStop(1,'#05030c');g.fillStyle=bg;g.fillRect(0,0,S,S);
+const cols=6,cell=76,b=64,x0=(S-cols*cell)/2+6,y0=58;
+for(let r=0;r<3;r++)for(let c=0;c<cols;c++){
+  if(r===2&&(c===2||c===3))continue;if(r===1&&c===3)continue;
+  const h=c*55+r*15+300,x=x0+c*cell,y=y0+r*cell;
+  g.save();g.shadowColor=hsl(h,100,60);g.shadowBlur=22*2;g.strokeStyle=hsl(h,100,68);g.lineWidth=5;g.strokeRect(x+3,y+3,b-6,b-6);g.shadowBlur=0;g.fillStyle=hsl(h,100,60,.25);g.fillRect(x+6,y+6,b-12,b-12);g.restore();
+}
+g.save();g.globalCompositeOperation='lighter';[[246,176],[300,160],[330,205],[205,205],[270,130],[225,150]].forEach(([x,y],i)=>{g.fillStyle=hsl(300+i*35,100,70,.9);g.shadowColor=g.fillStyle;g.shadowBlur=28;g.fillRect(x-4,y-4,9,9)});g.restore();
+const tr=g.createLinearGradient(110,500,270,260);tr.addColorStop(0,'transparent');tr.addColorStop(1,'rgba(255,120,255,.9)');
+g.save();g.strokeStyle=tr;g.lineWidth=14;g.lineCap='round';g.shadowColor='#f6f';g.shadowBlur=52;g.beginPath();g.moveTo(110,500);g.lineTo(268,268);g.stroke();g.restore();
+g.save();g.shadowColor='#fff';g.shadowBlur=80;g.fillStyle='#fff';g.beginPath();g.arc(272,262,22,0,7);g.fill();g.restore();
+g.save();g.shadowColor='#e040ff';g.shadowBlur=52;g.strokeStyle='#fff';g.lineWidth=6;g.lineCap='round';g.beginPath();g.moveTo(130,470);g.lineTo(250,470);g.stroke();g.restore();
+</script>
