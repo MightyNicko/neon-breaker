@@ -27,7 +27,10 @@ export class Title {
   }
 
   resize(safeTopPx = 0, safeBottomPx = 0) {
+    this.safePx = [safeTopPx, safeBottomPx];
     const vw = window.innerWidth, vh = window.innerHeight;
+    // The window can report size 0 while opening or in the background: keep the last layout.
+    if (!vw || !vh) return;
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.s = Math.min(vw / W, vh / MIN_H);
     const visW = vw / this.s, visH = vh / this.s;
@@ -147,6 +150,7 @@ export class Title {
   frame(ts) {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.frame);
+    if (!this.bg) { this.resize(...this.safePx); if (!this.bg) return; }
     const dt = Math.min(0.05, (ts - this.last) / 1000);
     this.last = ts;
     this.update(dt);

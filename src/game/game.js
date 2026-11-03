@@ -34,6 +34,8 @@ export class Game {
   // ---------- layout ----------
   resize(safeTopPx = 0, safeBottomPx = 0) {
     const vw = window.innerWidth, vh = window.innerHeight;
+    // The window can report size 0 while in the background: keep the last layout.
+    if (!vw || !vh) return;
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.s = Math.min(vw / W, vh / MIN_H);
     const visW = vw / this.s, visH = vh / this.s;
