@@ -129,6 +129,7 @@ function tryPlay(n) {
   if (state.lives <= 0) { noLives(); return; }
   currentLevel = n;
   show('game');
+  audio.setMusic(true);
   game.start(n - 1, { tutorial: n === 1 && !state.tutorialDone && state.unlocked === 1 });
 }
 
@@ -200,17 +201,18 @@ const game = new Game($('game'), {
   },
 });
 
-function toMap() { game.stop(); show('map'); }
+function toMap() { game.stop(); audio.setMusic(false); show('map'); }
 
 function pauseGame() {
   if (screen !== 'game') return;
   if (game.state !== 'playing' && game.state !== 'ready') return;
   game.pause();
+  audio.setMusic(false);
   showModal({
     title: t('paused'),
     text: t('quit_warning'),
     buttons: [
-      { label: t('resume'), primary: true, onClick: () => game.resume() },
+      { label: t('resume'), primary: true, onClick: () => { game.resume(); audio.setMusic(true); } },
       { label: t('quit'), onClick: () => { lives.loseLife(state); storage.save(state); toMap(); } },
     ],
     onClose: () => {},

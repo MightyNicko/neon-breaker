@@ -39,6 +39,7 @@
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
 | L1 | Lägga till ljudeffekter | 2 | 2 | Klar – syntetiserat ljud, av/på i inställningarna |
+| L2 | Bakgrundsmusik i SID-stil under spel | 2 | 2 | Klar – audio/neon-breaker-sid-loop.wav, skapas med tools/make-sid-loop.mjs; följer ljudinställningen |
 
 ## Monetisering (M)
 
