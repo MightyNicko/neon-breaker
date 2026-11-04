@@ -144,11 +144,13 @@ const midi = (name) => {
   return { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] ? 1 : 0) + 12 * (Number(m[3]) + 1);
 };
 const CHORDS = { Am: [57, 60, 64, 33], F: [53, 57, 60, 29], G: [55, 59, 62, 31], C: [55, 60, 64, 36], E: [56, 59, 64, 28], Dm: [57, 62, 65, 38] };
-// Two chords per bar. The last bar's E pulls back to Am at the loop point.
+// Two chords per bar. The song is a circle with no intro or ending: melody (1-16), breakdown (17-20), a groove that
+// builds with the filter opening (21-28), then a snare roll and rising E chord (29-32) that resolve into the melody.
 const A = 'Am Am Am Am F F G G Am Am Am Am F F G E'.split(' ');
 const B = 'F F G G Am Am C C F F G G Am Am E E'.split(' ');
-const C = 'Am Am F F Dm Dm E E Am Am F F G G E E'.split(' ');
-const HARMONY = [...A, ...A, ...B, ...C];
+const BREAK = 'Am Am F F Dm Dm E E'.split(' ');
+const BUILD = 'Am Am F F G G E E'.split(' ');
+const HARMONY = [...A, ...B, ...BREAK, ...A, ...BUILD];
 const BARS = HARMONY.length / 2, TICKS = BARS * 16;
 export const LOOP_FRAMES = BARS * FRAMES_PER_BAR;
 const chordAt = (tick) => CHORDS[HARMONY[Math.floor(tick / 8)]];
@@ -163,16 +165,17 @@ const LEAD_B = ['F5:4 F5:2 E5:2 C5:4 D5:2 F5:2', 'G5:6 D5:2 B4:4 D5:2 E5:2', 'E5
   'A5:4 C6:2 A5:2 F5:4 E5:2 F5:2', 'G5:4 B5:2 A5:2 G5:4 F5:2 D5:2', 'E5:4 A5:2 G5:2 E5:4 D5:2 C5:2', 'B4:6 E5:2 G#4:4 B4:2 E5:2'];
 const BELLS = ['A5:4 E6:4 C6:4 E5:4', 'F5:4 C6:4 A5:4 C5:4', 'D5:4 A5:4 F5:4 D6:4', 'E5:4 B5:4 G#5:4 E6:4'];
 const PLUCK = ['A5:2 C6:2 E6:2 A5:2 C6:2 E6:2 A6:4', 'F5:2 A5:2 C6:2 F5:2 A5:2 C6:2 F6:4',
-  'G5:2 B5:2 D6:2 G5:2 B5:2 D6:2 G6:4', 'E6:2 B5:2 G#5:2 E5:2 B4:2 G#4:2 E4:4'];
+  'G5:2 B5:2 D6:2 G5:2 B5:2 D6:2 G6:4', 'E4:2 G#4:2 B4:2 E5:2 G#5:2 B5:2 E6:4'];
 
 // Voice 1 shares bass and drums. K kick (falls into the bass note), L the same but quieter, S snare, H hat, . bass note, _ hold.
 const P_SPARSE = 'K...S_.HK...S_.H', P_FULL = 'K.H.S_H.K.H.S_H.', P_FILL = 'K.H.S_H.K.S_S.SS', P_DRIVE = 'K.H.S_H.KKH.S_H.',
   P_FILL2 = 'K.H.S_H.S_S_SSSS', P_LONG = 'L_______L_______', P_LONG2 = 'L_______L___S_S_', P_FOUR = 'K.H.K.H.K.H.K.H.', P_ROLL = 'S_S_S_S_S.S.SSSS';
 const DRUMS = [
-  P_SPARSE, P_SPARSE, P_SPARSE, P_SPARSE, P_FULL, P_FULL, P_FULL, P_FILL,
   P_FULL, P_FULL, P_FULL, P_FULL, P_FULL, P_FULL, P_FULL, P_FILL,
   P_DRIVE, P_DRIVE, P_DRIVE, P_DRIVE, P_DRIVE, P_DRIVE, P_DRIVE, P_FILL2,
-  P_LONG, P_LONG, P_LONG, P_LONG2, P_FOUR, P_FOUR, P_FOUR, P_ROLL];
+  P_LONG, P_LONG, P_LONG, P_LONG2,
+  P_SPARSE, P_SPARSE, P_SPARSE, P_SPARSE, P_FULL, P_FULL, P_FULL, P_FILL,
+  P_FOUR, P_FOUR, P_FOUR, P_ROLL];
 const OCTAVE = [0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 12];
 const ARP_GATES = 'x..x..x.x..x..x.';
 
@@ -193,7 +196,7 @@ const INST = {
     : { freq: Math.max(0x5000, 0xd000 - e.f * 0x0c00), wave: 0x80 } },
   hat: { ad: 0x01, sr: 0x00, play: () => ({ freq: 0xf000, wave: 0x80 }) },
   arp: { ad: 0x07, sr: 0x53, play: (e) => {
-    const ch = chordAt(e.tick), filtered = e.bar < 8 || e.bar >= 28;
+    const ch = chordAt(e.tick), filtered = e.bar >= 20;
     return { hz: hzOf(ch[e.frame % 3] + 12), wave: 0x40, pw: pwm(e.frame, 128), filt: filtered };
   } },
   soft: { ad: 0x28, sr: 0x96, play: (e) => ({ hz: hzOf(e.note + vibrato(e.f, 16, 0.22)), wave: 0x10 }) },
@@ -230,15 +233,15 @@ export function buildTracks() {
       if (inst) v1[tick] = { inst, note };
     });
   });
-  melody(SOFT, INST.soft, 0, v3);
-  melody(LEAD_A, INST.lead, 8, v3);
-  melody(LEAD_B, INST.lead, 16, v3);
-  melody(BELLS, INST.bell, 24, v3);
+  melody(LEAD_A, INST.lead, 0, v3);
+  melody(LEAD_B, INST.lead, 8, v3);
+  melody(BELLS, INST.bell, 16, v3);
+  melody(SOFT, INST.soft, 20, v3);
   melody(PLUCK, INST.pluck, 28, v3);
   for (let bar = 0; bar < BARS; bar++) {
     for (let step = 0; step < 16; step++) {
       const tick = bar * 16 + step, lead = v3[tick];
-      if (bar >= 24 && bar < 28) { if (lead) v2[tick] = { inst: INST.ringSource, note: lead.note }; }
+      if (bar >= 16 && bar < 20) { if (lead) v2[tick] = { inst: INST.ringSource, note: lead.note }; }
       else if (ARP_GATES[step] === 'x') v2[tick] = { inst: INST.arp, note: 60 };
     }
   }
@@ -248,10 +251,11 @@ export function buildTracks() {
 // The one shared filter, played like an instrument across the song.
 function filterAt(frame) {
   const bar = frame / FRAMES_PER_BAR;
-  if (bar < 8) return { fc: 620 + 380 * bar / 8, res: 9, both: true };
-  if (bar < 24) return { fc: 780 + 130 * Math.sin(2 * Math.PI * bar / 2), res: 10, both: false };
-  if (bar < 28) return { fc: 430 + 530 * (bar - 24) / 4, res: 14, both: false };
-  return { fc: 620 + 390 * (bar - 28) / 4, res: 11, both: true };
+  if (bar < 16) return { fc: 780 + 130 * Math.sin(2 * Math.PI * bar / 2), res: 10, both: false };
+  if (bar < 20) return { fc: 450 + 200 * (bar - 16) / 4, res: 14, both: false };
+  if (bar < 28) return { fc: 650 + 350 * (bar - 20) / 8, res: 9, both: true };
+  // Stays open up to the loop point, where the chords leave the filter and the melody arrives.
+  return { fc: 1000 + 20 * (bar - 28) / 4, res: 11, both: true };
 }
 
 // The 50 Hz play routine. Returns a function that performs one frame's register writes.
