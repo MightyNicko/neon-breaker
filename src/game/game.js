@@ -6,6 +6,8 @@ export const W = 336;            // logical width (21 columns x 16)
 const CELL = W / COLS, BR = 13, OFF = (CELL - BR) / 2;
 const MIN_H = 480, MAX_H = 760;  // logical height range; real height follows the screen shape
 const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120, BALLS = 3;
+const MAX_ANGLE = 1.08;          // steepest paddle bounce, in radians from straight up
+const STALL_AFTER = 8, STALL_FULL = 20; // seconds without a brick before paddle bounces start and finish aiming at one
 const GLOW_PAD = 9;
 const MAX_PARTICLES = 160;
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
@@ -99,6 +101,7 @@ export class Game {
   resetBall() {
     this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0 };
     this.trail.length = 0;
+    this.sinceHit = 0;
     this.state = 'ready';
   }
 
@@ -148,26 +151,52 @@ export class Game {
   // ---------- physics ----------
   step(dt) {
     const b = this.ball;
+    this.sinceHit += dt;
     // x axis
     b.x += b.vx * dt;
     if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); }
     else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); }
     if (this.hitBrick()) { b.x -= b.vx * dt; b.vx = -b.vx; }
     // y axis
-    const prevY = b.y;
     b.y += b.vy * dt;
     if (b.y < this.safe.top + BALL_R + 30) { b.y = this.safe.top + BALL_R + 30; b.vy = Math.abs(b.vy); this.keepAngle(); }
     if (this.hitBrick()) { b.y -= b.vy * dt; b.vy = -b.vy; this.keepAngle(); }
-    // paddle
-    const py = this.paddleY;
-    if (b.vy > 0 && prevY + BALL_R <= py + 2 && b.y + BALL_R >= py && Math.abs(b.x - this.paddle.x) <= PW / 2 + BALL_R * 0.8) {
-      const off = Math.max(-1, Math.min(1, (b.x - this.paddle.x) / (PW / 2)));
-      const ang = off * 1.08;
+    this.hitPaddle();
+    if (b.y - BALL_R > this.H) this.loseBall();
+  }
+
+  hitPaddle() {
+    const b = this.ball, px = this.paddle.x, py = this.paddleY, half = PW / 2;
+    const dx = b.x - Math.max(px - half, Math.min(b.x, px + half));
+    const dy = b.y - Math.max(py, Math.min(b.y, py + PH));
+    if (dx * dx + dy * dy >= BALL_R * BALL_R) return;
+    if (b.y <= py) { // top: the bounce angle follows where the ball lands
+      if (b.vy <= 0) return;
+      const off = Math.max(-1, Math.min(1, (b.x - px) / half));
+      const ang = this.antiStall(off * MAX_ANGLE);
       b.y = py - BALL_R;
       b.vx = this.speed * Math.sin(ang);
       b.vy = -this.speed * Math.cos(ang);
+    } else if (dy > 0 && dx === 0) { // underside: the paddle slid over the ball, which keeps falling
+      b.y = py + PH + BALL_R;
+      b.vy = Math.abs(b.vy);
+    } else { // side: bounces off but stays below the top edge, so the ball is still lost
+      const side = dx !== 0 ? Math.sign(dx) : (b.x >= px ? 1 : -1);
+      b.x = Math.max(BALL_R, Math.min(W - BALL_R, px + side * (half + BALL_R)));
+      b.vx = side * Math.abs(b.vx);
     }
-    if (b.y - BALL_R > this.H) this.loseBall();
+  }
+
+  antiStall(ang) { // the longer without a brick, the more the bounce aims at a random remaining one
+    const w = Math.min(1, (this.sinceHit - STALL_AFTER) / (STALL_FULL - STALL_AFTER));
+    if (w <= 0) return ang;
+    let pick = -1, n = 0;
+    for (let i = 0; i < this.alive.length; i++) if (this.alive[i] && Math.random() * ++n < 1) pick = i;
+    if (pick < 0) return ang;
+    const b = this.ball;
+    const tx = (pick % COLS + 0.5) * CELL, ty = this.gy + (Math.floor(pick / COLS) + 0.5) * CELL;
+    const aim = ang + (Math.atan2(tx - b.x, b.y - ty) - ang) * w;
+    return Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, aim));
   }
 
   keepAngle() { // avoid near-horizontal ping-pong
@@ -193,6 +222,7 @@ export class Game {
         if (dx * dx + dy * dy < BALL_R * BALL_R) {
           this.alive[i] = 0;
           this.remaining--;
+          this.sinceHit = 0;
           this.dirty = true;
           this.burst(rx + BR / 2, ry + BR / 2, this.hue[i]);
           if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; }
