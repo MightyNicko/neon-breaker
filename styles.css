@@ -37,7 +37,7 @@ body{position:fixed;inset:0;overflow:hidden}
   border-radius:12px;padding:6px 10px;box-shadow:0 0 8px rgba(224,64,255,.35)}
 
 #map-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-top:calc(env(safe-area-inset-top) + 40px)}
-#map{display:block;width:100%;max-width:480px;height:auto;margin:0 auto}
+#map{display:block;width:100%;height:auto}
 .node{cursor:pointer}
 .node.lock{cursor:default}
 #map text{font-family:-apple-system,system-ui,sans-serif;pointer-events:none}

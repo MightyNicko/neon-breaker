@@ -73,7 +73,123 @@ test('a rising ball is not caught by the paddle', () => {
   const g = newGame();
   Object.assign(g.ball, { x: W / 2, y: g.paddleY - BALL_R + 1, vx: 0, vy: -g.speed });
   g.step(STEP);
-  assert.equal(g.ball.vy, -g.speed);
+  assert.ok(Math.abs(g.ball.vy + g.speed) < 1e-9);
+});
+
+test('speed: each ball starts at 75 %, reaches the level speed after 30 s and then stays there', () => {
+  const g = newGame();
+  const full = g.level.speed;
+  assert.equal(g.speed, full * 0.75);
+  g.launch(1);
+  const run = (seconds) => {
+    for (let i = 0; i < seconds * 120 && g.state === 'playing'; i++) {
+      g.paddle.x = Math.min(Math.max(g.ball.x, PW / 2), W - PW / 2);
+      g.step(STEP);
+    }
+  };
+  run(15);
+  assert.ok(Math.abs(g.speed - full * 0.875) < 1, `halfway ${g.speed}`);
+  assert.ok(Math.abs(Math.hypot(g.ball.vx, g.ball.vy) - g.speed) < 1e-6, 'the ball follows the ramp');
+  run(20);
+  assert.equal(g.speed, full);
+  g.loseBall();
+  assert.equal(g.speed, full * 0.75, 'a new ball starts slow again');
+});
+
+test('launch: goes to the side that was tapped', () => {
+  for (let i = 0; i < 50; i++) {
+    for (const side of [-1, 1]) {
+      const g = newGame();
+      g.launch(side);
+      assert.equal(Math.sign(g.ball.vx), side);
+      assert.ok(g.ball.vy < 0);
+    }
+  }
+});
+
+test('input: tapping the left or right half of the screen launches that way, from anywhere before launch', () => {
+  for (const [clientX, side] of [[100, -1], [700, 1]]) {
+    const g = newGame();
+    g.resetBall();
+    g.canvas.setPointerCapture = () => {};
+    const e = { pointerId: 1, clientX, clientY: 200, preventDefault() {} }; // far above the paddle zone
+    g.onDown(e);
+    g.onUp(e);
+    assert.equal(g.state, 'playing');
+    assert.equal(Math.sign(g.ball.vx), side);
+  }
+});
+
+test('input: while playing, only the zone around the paddle moves it', () => {
+  const g = newGame();
+  g.canvas.setPointerCapture = () => {};
+  g.onDown({ pointerId: 1, clientX: 400, clientY: 100, preventDefault() {} });
+  assert.equal(g.pointer, null);
+});
+
+test('layout: short patterns move down, tall ones stay clear of the paddle', () => {
+  for (let level = 0; level < 5; level++) {
+    const g = newGame(level);
+    assert.ok(g.gy >= g.safe.top + 48);
+    assert.ok(g.gy + g.rows * 16 <= g.paddleY - 60, `level ${level + 1}`);
+  }
+});
+
+test('tutorial: dragging moves on to the launch step, launching finishes it once', () => {
+  let done = 0;
+  const g = new Game({ getContext: () => ctx, addEventListener() {}, setPointerCapture() {}, width: 0, height: 0 }, { onTutorialDone() { done++; } });
+  g.resize(0, 0);
+  g.start(0, { tutorial: true });
+  assert.equal(g.tutorial, 1);
+  g.onDown({ pointerId: 1, clientX: 400, clientY: 1000, preventDefault() {} });
+  g.onMove({ pointerId: 1, clientX: 500, clientY: 1000 });
+  assert.equal(g.tutorial, 2);
+  g.onUp({ pointerId: 1, clientX: 500, clientY: 1000 });
+  assert.equal(g.state, 'ready', 'a drag does not launch');
+  g.onDown({ pointerId: 2, clientX: 700, clientY: 1000, preventDefault() {} });
+  g.onUp({ pointerId: 2, clientX: 700, clientY: 1000 });
+  assert.equal(g.state, 'playing');
+  assert.equal(g.tutorial, 0);
+  assert.equal(done, 1);
+  g.render(0);
+  const plain = newGame();
+  assert.equal(plain.tutorial, 0);
+});
+
+test('effects: a brick hit reports its sound and sets off the flash, a paddle hit its own', () => {
+  const sounds = [];
+  const g = new Game({ getContext: () => ctx, addEventListener() {}, width: 0, height: 0 }, { sfx: (n) => sounds.push(n) });
+  g.resize(0, 0);
+  g.start(0);
+  g.state = 'playing';
+  const i = g.alive.indexOf(1), r = Math.floor(i / 21), c = i % 21;
+  Object.assign(g.ball, { x: (c + 0.5) * 16, y: g.gy + (r + 0.5) * 16, vx: 0, vy: 10 });
+  assert.ok(g.hitBrick());
+  assert.deepEqual(sounds, ['brick']);
+  assert.equal(g.flashes.length, 1);
+  assert.equal(g.ballGlow, 1);
+  g.render(0);
+  g.updateParticles(0.5);
+  assert.equal(g.flashes.length, 0);
+  assert.ok(g.ballGlow < 0.1);
+  g.paddle.x = W / 2;
+  Object.assign(g.ball, { x: W / 2, y: g.paddleY - BALL_R + 1, vx: 0, vy: 100 });
+  g.hitPaddle();
+  assert.equal(sounds.at(-1), 'paddle');
+  assert.equal(g.paddlePulse, 1);
+});
+
+test('map roads: every node stays on the map at phone, tablet and desktop widths', async () => {
+  const { ROADS } = await import('../src/map/roads.js');
+  const el = () => ({});
+  for (const w of [360, 615, 800]) {
+    for (const name of Object.keys(ROADS)) {
+      const { nodes } = ROADS[name].build(20, (x, y) => [x, 1000 - y], el, {}, w);
+      const xs = nodes.map((n) => n[0]);
+      assert.ok(Math.min(...xs) >= 30 && Math.max(...xs) <= w - 30, `${name} at ${w}: ${Math.min(...xs)}..${Math.max(...xs)}`);
+      if (w > 360) assert.ok(Math.max(...xs) - Math.min(...xs) > w * 0.45, `${name} uses the width at ${w}`);
+    }
+  }
 });
 
 test('anti-stall: no change before the limit, aims at a brick after it, never too shallow', () => {

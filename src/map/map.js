@@ -5,7 +5,8 @@ import { ZONES, ZONE_SIZE, TOTAL_LEVELS } from '../data/zones.js';
 import { ROADS } from './roads.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const VW = 360, TRANS = 110, PAD_TOP = 150, PAD_BOTTOM = 90;
+const MIN_W = 360, MAX_W = 800, NODE_SCALE = 4 / 3; // the map's logical width follows the screen so nodes keep their size
+const TRANS = 110, PAD_TOP = 150, PAD_BOTTOM = 90;
 
 function el(name, attrs, parent) {
   const e = document.createElementNS(NS, name);
@@ -25,10 +26,11 @@ function shape(parent, kind, x, y, r, attrs) {
   return el('polygon', { points: pts.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' '), ...attrs }, parent);
 }
 
-// opts: { playable: number of levels that exist, dev: also show "current" in zones without levels }
+// opts: { playable: number of levels that exist, dev: also show "current" in zones without levels, screenW: CSS pixels }
 export function buildMap(svg, unlocked, onSelect, opts = {}) {
   svg.replaceChildren();
   const playable = opts.playable ?? TOTAL_LEVELS;
+  const VW = Math.round(Math.max(MIN_W, Math.min(MAX_W, (opts.screenW || MIN_W) / NODE_SCALE)));
 
   // layout: zone blocks stacked bottom-up with a transition band between them
   const heights = ZONES.map((z) => ROADS[z.road].height(ZONE_SIZE));
@@ -73,7 +75,7 @@ export function buildMap(svg, unlocked, onSelect, opts = {}) {
   const gNode = el('g', {}, svg);
 
   // build each zone's road
-  const roads = blocks.map((b) => ROADS[b.z.road].build(ZONE_SIZE, b.place, el, gDeco));
+  const roads = blocks.map((b) => ROADS[b.z.road].build(ZONE_SIZE, b.place, el, gDeco, VW));
   const nodeAt = (n) => roads[Math.floor((n - 1) / ZONE_SIZE)].nodes[(n - 1) % ZONE_SIZE];
   const colorOf = (n) => ZONES[Math.floor((n - 1) / ZONE_SIZE)].color(n);
 
@@ -138,5 +140,5 @@ export function buildMap(svg, unlocked, onSelect, opts = {}) {
     tx.textContent = n;
     if (state !== 'lock') g.addEventListener('click', () => onSelect(n));
   }
-  return { nodeY: focusY || nodeAt(Math.min(Math.max(unlocked, 1), TOTAL_LEVELS))[1], height: H };
+  return { nodeY: focusY || nodeAt(Math.min(Math.max(unlocked, 1), TOTAL_LEVELS))[1], height: H, width: VW };
 }

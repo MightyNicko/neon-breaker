@@ -3,13 +3,16 @@ import { COLS, LEVELS } from './levels.js';
 import { t } from '../core/i18n.js';
 
 export const W = 336;            // logical width (21 columns x 16)
-const CELL = W / COLS, BR = 13, OFF = (CELL - BR) / 2;
+const CELL = W / COLS, BR = 14.5, OFF = (CELL - BR) / 2;
 const MIN_H = 480, MAX_H = 760;  // logical height range; real height follows the screen shape
 const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120, BALLS = 3;
 const MAX_ANGLE = 1.08;          // steepest paddle bounce, in radians from straight up
+const START_SPEED = 0.75, RAMP_TIME = 30; // each ball starts at 75 % of the level's speed and reaches it after 30 s
+const LAUNCH_MIN = 0.3, LAUNCH_SPREAD = 0.2; // launch angle in radians, to the side that was tapped
 const STALL_AFTER = 8, STALL_FULL = 20; // seconds without a brick before paddle bounces start and finish aiming at one
 const GLOW_PAD = 9;
 const MAX_PARTICLES = 160;
+const FLASH_TIME = 0.16, SHAKE_ON_HIT = 1.3; // shake in logical units; skipped when the system asks for reduced motion
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
 
 const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
@@ -22,10 +25,13 @@ export class Game {
     this.state = 'idle';          // idle | ready | playing | paused | won | lost
     this.safe = { top: 0, bottom: 0 };
     this.particles = Array.from({ length: MAX_PARTICLES }, () => ({ on: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, hue: 0 }));
+    this.flashes = [];
     this.trail = [];
     this.sprites = {};
     this.running = false;
     this.pointer = null;
+    this.tutorial = 0;            // 0 off, 1 show how to move, 2 show how to launch
+    this.calm = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     this.frame = this.frame.bind(this);
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
@@ -49,8 +55,8 @@ export class Game {
     this.safe.bottom = Math.max(0, safeBottomPx / this.s - this.offY);
     this.canvas.width = Math.round(vw * this.dpr);
     this.canvas.height = Math.round(vh * this.dpr);
-    this.gy = Math.round(this.safe.top + 48);
     this.paddleY = Math.round(this.H - 84 - this.safe.bottom);
+    this.layoutGrid();
     this.sprites = {};
     this.buildBackground();
     this.layer = null;
@@ -58,11 +64,18 @@ export class Game {
     if (this.paddle) this.paddle.x = Math.min(Math.max(this.paddle.x, PW / 2), W - PW / 2);
   }
 
+  layoutGrid() { // move short patterns down into the empty field, keeping room to play below them
+    const top = this.safe.top + 48;
+    this.gy = Math.round(top + Math.max(0, this.paddleY - top - (this.rows || 0) * CELL - 140) * 0.4);
+  }
+
   // ---------- level ----------
-  start(levelIndex) {
+  start(levelIndex, opts = {}) {
     const level = LEVELS[levelIndex];
     this.level = level;
     this.rows = level.grid.length;
+    this.layoutGrid();
+    this.tutorial = opts.tutorial ? 1 : 0;
     this.alive = new Uint8Array(COLS * this.rows);
     this.hue = new Uint16Array(COLS * this.rows);
     this.remaining = 0;
@@ -78,10 +91,11 @@ export class Game {
         this.hue[i] = (Math.round(h / 15) * 15) % 360;
       }
     });
-    this.speed = level.speed;
     this.balls = BALLS;
     this.paddle = { x: W / 2 };
     this.particles.forEach((p) => { p.on = false; });
+    this.flashes.length = 0;
+    this.shake = this.paddlePulse = this.ballGlow = 0;
     this.dirty = true;
     this.resetBall();
     this.endTimer = 0;
@@ -102,6 +116,8 @@ export class Game {
     this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0 };
     this.trail.length = 0;
     this.sinceHit = 0;
+    this.playTime = 0;
+    this.speed = this.level.speed * START_SPEED;
     this.state = 'ready';
   }
 
@@ -112,12 +128,16 @@ export class Game {
     if (this.state === 'paused') { this.state = this.resumeState; this.last = performance.now(); this.acc = 0; }
   }
 
-  launch() {
-    const a = (Math.random() - 0.5) * 0.5;
+  launch(side = Math.random() < 0.5 ? -1 : 1) {
+    const a = side * (LAUNCH_MIN + Math.random() * LAUNCH_SPREAD);
     this.ball.vx = this.speed * Math.sin(a);
     this.ball.vy = -this.speed * Math.cos(a);
     this.state = 'playing';
+    this.sfx('launch');
+    if (this.tutorial) { this.tutorial = 0; this.hooks.onTutorialDone?.(); }
   }
+
+  sfx(name, arg) { this.hooks.sfx?.(name, arg); }
 
   // ---------- input (relative drag, must start in the zone around the paddle) ----------
   toLogical(e) { return { x: e.clientX / this.s - this.offX, y: e.clientY / this.s - this.offY }; }
@@ -127,7 +147,7 @@ export class Game {
     e.preventDefault();
     if (this.pointer || (this.state !== 'ready' && this.state !== 'playing')) return;
     const p = this.toLogical(e);
-    if (!this.inZone(p)) return;
+    if (this.state !== 'ready' && !this.inZone(p)) return; // before launch the whole screen counts
     this.canvas.setPointerCapture(e.pointerId);
     this.pointer = { id: e.pointerId, x: p.x, startX: p.x, t: performance.now(), moved: 0 };
   }
@@ -139,30 +159,40 @@ export class Game {
     ptr.x = p.x;
     ptr.moved += Math.abs(dx);
     if (this.state === 'paused') return;
+    if (this.tutorial === 1 && ptr.moved > 30) this.tutorial = 2;
     this.paddle.x = Math.min(Math.max(this.paddle.x + dx, PW / 2), W - PW / 2);
   }
   onUp(e, cancelled) {
     const ptr = this.pointer;
     if (!ptr || ptr.id !== e.pointerId) return;
     this.pointer = null;
-    if (!cancelled && this.state === 'ready' && ptr.moved < 8 && performance.now() - ptr.t < 350) this.launch();
+    if (!cancelled && this.state === 'ready' && ptr.moved < 8 && performance.now() - ptr.t < 350) this.launch(ptr.startX >= W / 2 ? 1 : -1);
   }
 
   // ---------- physics ----------
   step(dt) {
     const b = this.ball;
     this.sinceHit += dt;
+    this.rampSpeed(dt);
     // x axis
     b.x += b.vx * dt;
-    if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); }
-    else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); }
+    if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); this.sfx('wall'); }
+    else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); this.sfx('wall'); }
     if (this.hitBrick()) { b.x -= b.vx * dt; b.vx = -b.vx; }
     // y axis
     b.y += b.vy * dt;
-    if (b.y < this.safe.top + BALL_R + 30) { b.y = this.safe.top + BALL_R + 30; b.vy = Math.abs(b.vy); this.keepAngle(); }
+    if (b.y < this.safe.top + BALL_R + 30) { b.y = this.safe.top + BALL_R + 30; b.vy = Math.abs(b.vy); this.keepAngle(); this.sfx('wall'); }
     if (this.hitBrick()) { b.y -= b.vy * dt; b.vy = -b.vy; this.keepAngle(); }
     this.hitPaddle();
     if (b.y - BALL_R > this.H) this.loseBall();
+  }
+
+  rampSpeed(dt) {
+    this.playTime += dt;
+    const speed = this.level.speed * Math.min(1, START_SPEED + (1 - START_SPEED) * this.playTime / RAMP_TIME);
+    const k = speed / this.speed;
+    this.ball.vx *= k; this.ball.vy *= k;
+    this.speed = speed;
   }
 
   hitPaddle() {
@@ -177,6 +207,8 @@ export class Game {
       b.y = py - BALL_R;
       b.vx = this.speed * Math.sin(ang);
       b.vy = -this.speed * Math.cos(ang);
+      this.paddlePulse = 1;
+      this.sfx('paddle');
     } else if (dy > 0 && dx === 0) { // underside: the paddle slid over the ball, which keeps falling
       b.y = py + PH + BALL_R;
       b.vy = Math.abs(b.vy);
@@ -184,6 +216,7 @@ export class Game {
       const side = dx !== 0 ? Math.sign(dx) : (b.x >= px ? 1 : -1);
       b.x = Math.max(BALL_R, Math.min(W - BALL_R, px + side * (half + BALL_R)));
       b.vx = side * Math.abs(b.vx);
+      this.sfx('wall');
     }
   }
 
@@ -225,7 +258,11 @@ export class Game {
           this.sinceHit = 0;
           this.dirty = true;
           this.burst(rx + BR / 2, ry + BR / 2, this.hue[i]);
-          if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; }
+          this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME });
+          this.ballGlow = 1;
+          if (!this.calm) this.shake = SHAKE_ON_HIT;
+          this.sfx('brick', r);
+          if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); }
           return true;
         }
       }
@@ -235,7 +272,8 @@ export class Game {
 
   loseBall() {
     this.balls--;
-    if (this.balls > 0) { this.resetBall(); return; }
+    if (this.balls > 0) { this.sfx('lose'); this.resetBall(); return; }
+    this.sfx('gameover');
     this.state = 'lost';
     this.endTimer = 0.5;
   }
@@ -258,6 +296,11 @@ export class Game {
       if (p.life <= 0) { p.on = false; continue; }
       p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.97; p.vy *= 0.97;
     }
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      if ((this.flashes[i].life -= dt) <= 0) this.flashes.splice(i, 1);
+    }
+    const fade = Math.pow(0.001, dt); // about 1/1000 left after a second
+    this.shake *= fade; this.paddlePulse *= fade; this.ballGlow *= fade;
   }
 
   // ---------- loop ----------
@@ -331,6 +374,16 @@ export class Game {
     });
   }
 
+  handSprite() { // one raised finger and a palm, outlined like the rest of the game
+    return this.sprite('hand', 44, 62, (g, k) => {
+      g.shadowColor = '#5ff'; g.shadowBlur = 8 * k;
+      g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.fillStyle = 'rgba(10,6,20,.75)';
+      g.beginPath(); g.roundRect(18, 8, 9, 30, 4.5); g.fill(); g.stroke();
+      g.beginPath(); g.roundRect(11, 30, 23, 24, 8); g.fill(); g.stroke();
+      g.shadowBlur = 0; g.fillStyle = 'rgb(10,6,20)'; g.fillRect(19, 29, 7, 3);
+    });
+  }
+
   buildBackground() {
     const w = this.canvas.width, h = this.canvas.height;
     const c = this.bg = document.createElement('canvas');
@@ -378,7 +431,8 @@ export class Game {
     const g = this.g, k = this.k;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.drawImage(this.bg, 0, 0);
-    g.setTransform(k, 0, 0, k, this.offX * k, this.offY * k);
+    const shakeX = (Math.random() - 0.5) * 2 * this.shake, shakeY = (Math.random() - 0.5) * 2 * this.shake;
+    g.setTransform(k, 0, 0, k, (this.offX + shakeX) * k, (this.offY + shakeY) * k);
     if (this.dirty) this.rebuildLayer();
     g.drawImage(this.layer, 0, 0, W, this.H);
 
@@ -394,6 +448,11 @@ export class Game {
       g.fillStyle = hsl(p.hue, 100, 65, p.life / p.max);
       g.fillRect(p.x - 1.2, p.y - 1.2, 2.4, 2.4);
     }
+    for (const f of this.flashes) { // white flash that grows out of the broken brick
+      const a = f.life / FLASH_TIME, grow = (1 - a) * 5;
+      g.fillStyle = hsl(f.hue, 100, 88, a * 0.9);
+      g.fillRect(f.x - grow, f.y - grow, BR + grow * 2, BR + grow * 2);
+    }
     g.globalCompositeOperation = 'source-over';
 
     // ball, trail, paddle
@@ -407,8 +466,22 @@ export class Game {
       }
       g.globalAlpha = 1;
       this.blit(g, bs, this.ball.x - off, this.ball.y - off);
-      this.blit(g, this.paddleSprite(), this.paddle.x - PW / 2 - 20, this.paddleY - 20);
+      if (this.ballGlow > 0.02) { // brighter and bigger for a moment after a hit
+        const sc = 1 + this.ballGlow * 0.7;
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.ballGlow;
+        g.drawImage(bs.c, this.ball.x - off * sc, this.ball.y - off * sc, bs.w * sc, bs.h * sc);
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      }
+      const ps = this.paddleSprite(), px = this.paddle.x - PW / 2 - 20, py = this.paddleY - 20 + this.paddlePulse * 2.5;
+      this.blit(g, ps, px, py);
+      if (this.paddlePulse > 0.02) { // dips and lights up when the ball lands
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.paddlePulse;
+        this.blit(g, ps, px, py);
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      }
     }
+
+    g.setTransform(k, 0, 0, k, this.offX * k, this.offY * k); // the HUD and hints do not shake
 
     // HUD
     g.fillStyle = 'rgba(255,255,255,.85)';
@@ -422,11 +495,35 @@ export class Game {
       g.beginPath(); g.arc(W / 2 - 12 + i * 12, hy, 2.6, 0, 7); g.fill();
     }
     g.globalAlpha = 1;
-    if (this.state === 'ready') {
+    if (this.state === 'ready' && this.tutorial) this.renderTutorial(g, ts);
+    else if (this.state === 'ready') {
       g.textAlign = 'center';
       g.globalAlpha = 0.5 + 0.4 * Math.sin(ts / 300);
       g.fillText(t('tap_to_launch'), W / 2, this.paddleY - 36);
       g.globalAlpha = 1;
+    }
+  }
+
+  renderTutorial(g, ts) {
+    const hand = this.handSprite(), cy = this.paddleY + 14;
+    g.textAlign = 'center'; g.fillStyle = '#fff';
+    g.font = '600 13px -apple-system, system-ui, sans-serif';
+    g.fillText(t(this.tutorial === 1 ? 'tut_move' : 'tut_launch'), W / 2, this.paddleY - 62);
+    if (this.tutorial === 1) { // the finger slides from side to side under the paddle
+      const x = this.paddle.x + Math.sin(ts / 550) * 62;
+      this.blit(g, hand, x - 22, cy - 8);
+    } else { // the finger taps left, then right, and a dashed line shows where the ball goes
+      const cycle = (ts / 1100) % 2, side = cycle < 1 ? -1 : 1, phase = cycle % 1;
+      const x = W / 2 + side * 88, y = cy + 4, press = phase < 0.25 ? phase / 0.25 : 1;
+      if (press === 1) {
+        g.strokeStyle = `rgba(95,255,255,${(1 - phase) * 0.9})`; g.lineWidth = 1.4;
+        g.beginPath(); g.arc(x, y, 5 + (phase - 0.25) * 26, 0, 7); g.stroke();
+        const a = LAUNCH_MIN + LAUNCH_SPREAD / 2, dx = side * Math.sin(a), dy = -Math.cos(a);
+        g.setLineDash([3, 5]); g.strokeStyle = 'rgba(255,255,255,.55)';
+        g.beginPath(); g.moveTo(this.ball.x + dx * 10, this.ball.y + dy * 10); g.lineTo(this.ball.x + dx * 80, this.ball.y + dy * 80); g.stroke();
+        g.setLineDash([]);
+      }
+      this.blit(g, hand, x - 22, y - 8 + (1 - press) * 8);
     }
   }
 }

@@ -8,6 +8,7 @@ import { t, setLang, getLang, LANGS, DEFAULT_LANG, langName as dictName } from '
 import * as storage from './core/storage.js';
 import * as lives from './core/lives.js';
 import { adProvider } from './core/ads.js';
+import * as audio from './core/audio.js';
 import { VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,6 +16,7 @@ const state = storage.load(LEVELS.length + 1, LANGS);
 setLang(state.lang ?? DEFAULT_LANG);
 lives.refresh(state);
 storage.save(state);
+audio.setEnabled(state.sound);
 
 const probe = $('safe-probe');
 // Dev aid: ?unlock=45 shows the map as if 45 levels were cleared (view only, never saved).
@@ -55,6 +57,7 @@ function applyText() {
   $('btn-menu').textContent = '‹ ' + t('menu');
   $('settings-title').textContent = t('settings');
   $('lbl-lang').textContent = t('language');
+  $('lbl-sound').textContent = t('sound');
   $('lbl-progress').textContent = t('progress');
   $('btn-reset').textContent = t('reset_progress');
 }
@@ -66,6 +69,8 @@ function resizeTitle() {
 }
 
 function renderSettings() {
+  $('btn-sound').textContent = t(state.sound ? 'sound_on' : 'sound_off');
+  $('btn-sound').classList.toggle('sel', state.sound);
   const list = $('lang-list');
   list.replaceChildren();
   for (const code of LANGS) {
@@ -88,7 +93,7 @@ function resetProgress() {
     buttons: [
       { label: t('cancel'), primary: true },
       { label: t('reset_yes'), onClick: () => {
-        state.unlocked = 1; state.lives = storage.MAX_LIVES; state.lifeTs = null;
+        state.unlocked = 1; state.lives = storage.MAX_LIVES; state.lifeTs = null; state.tutorialDone = false;
         storage.save(state);
       } },
     ],
@@ -96,11 +101,13 @@ function resetProgress() {
 }
 
 // ---------- map ----------
+let mapScreenW = 0;
 function renderMap(scroll) {
-  const info = buildMap($('map'), Math.max(state.unlocked, devUnlock), onSelect, { playable: LEVELS.length, dev: devUnlock > 0 });
+  mapScreenW = $('map-scroll').clientWidth;
+  const info = buildMap($('map'), Math.max(state.unlocked, devUnlock), onSelect, { playable: LEVELS.length, dev: devUnlock > 0, screenW: mapScreenW });
   renderLives();
   if (scroll) requestAnimationFrame(() => {
-    const sc = $('map-scroll'), scale = $('map').clientWidth / 360;
+    const sc = $('map-scroll'), scale = $('map').clientWidth / info.width;
     sc.scrollTop = Math.max(0, info.nodeY * scale - sc.clientHeight * 0.6);
   });
 }
@@ -122,7 +129,7 @@ function tryPlay(n) {
   if (state.lives <= 0) { noLives(); return; }
   currentLevel = n;
   show('game');
-  game.start(n - 1);
+  game.start(n - 1, { tutorial: n === 1 && !state.tutorialDone && state.unlocked === 1 });
 }
 
 // ---------- no lives ----------
@@ -164,6 +171,8 @@ function resizeGame() {
 }
 
 const game = new Game($('game'), {
+  sfx: audio.play,
+  onTutorialDone() { state.tutorialDone = true; storage.save(state); },
   onEnd(won) {
     if (won) {
       state.unlocked = Math.max(state.unlocked, Math.min(currentLevel + 1, LEVELS.length + 1));
@@ -214,10 +223,23 @@ $('btn-settings').addEventListener('click', () => show('settings'));
 $('btn-back').addEventListener('click', () => show('title'));
 $('btn-menu').addEventListener('click', () => show('title'));
 $('btn-reset').addEventListener('click', resetProgress);
+$('btn-sound').addEventListener('click', () => {
+  state.sound = !state.sound; storage.save(state);
+  audio.setEnabled(state.sound);
+  renderSettings();
+  audio.play('paddle');
+});
+// iOS only starts audio from inside a user gesture.
+for (const ev of ['pointerup', 'touchend', 'click']) document.addEventListener(ev, audio.unlock, { passive: true });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
-window.addEventListener('resize', () => { if (screen === 'game') resizeGame(); if (screen === 'title') resizeTitle(); });
-window.addEventListener('orientationchange', () => setTimeout(() => { if (screen === 'game') resizeGame(); if (screen === 'title') resizeTitle(); }, 200));
+function onResize() {
+  if (screen === 'game') resizeGame();
+  if (screen === 'title') resizeTitle();
+  if (screen === 'map' && $('map-scroll').clientWidth !== mapScreenW) renderMap(false);
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
 // iOS: block pinch zoom, double-tap zoom and rubber-banding while playing.
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => { if (screen === 'game') e.preventDefault(); }, { passive: false });

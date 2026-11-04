@@ -5,7 +5,7 @@ const KEY = 'neonbreaker.v1';
 export const MAX_LIVES = 5;
 
 export function defaults() {
-  return { v: 1, lives: MAX_LIVES, lifeTs: null, unlocked: 1, lang: null };
+  return { v: 1, lives: MAX_LIVES, lifeTs: null, unlocked: 1, lang: null, sound: true, tutorialDone: false };
 }
 
 // Never trust stored data: coerce every field into its valid range.
@@ -19,6 +19,8 @@ export function sanitize(raw, maxLevel, langs) {
   if (d.lives < MAX_LIVES && d.lifeTs === null) d.lifeTs = Date.now();
   d.unlocked = int(raw.unlocked, 1, maxLevel, 1);
   d.lang = typeof raw.lang === 'string' && langs.includes(raw.lang) ? raw.lang : null;
+  d.sound = raw.sound !== false;
+  d.tutorialDone = raw.tutorialDone === true;
   return d;
 }
 

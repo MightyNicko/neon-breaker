@@ -1,20 +1,20 @@
-// Road layouts, one per zone. Local coordinates: x 0..360, y grows upwards from the block bottom.
-// build(count, place, el, deco) returns { nodes: [[x,y]...], seg(i): points from node i to i+1 }
+// Road layouts, one per zone. Local coordinates: x 0..w, y grows upwards from the block bottom.
+// build(count, place, el, deco, w) returns { nodes: [[x,y]...], seg(i): points from node i to i+1 }
 // `place(x, yUp)` converts to map (SVG) coordinates, `el(name, attrs, parent)` creates SVG elements,
 // `deco` is the group for faint background decoration.
 
-const dust = (el, deco, place, h, n, seed) => {
-  for (let k = 0; k < n; k++) {
-    const [x, y] = place((k * 97 * seed) % 350 + 4, (k * 173 * seed) % (h - 20) + 10);
+const dust = (el, deco, place, h, n, seed, w) => {
+  for (let k = 0; k < n * w / 360; k++) {
+    const [x, y] = place((k * 97 * seed) % (w - 10) + 4, (k * 173 * seed) % (h - 20) + 10);
     el('rect', { x, y, width: 3, height: 3, fill: 'rgba(255,255,255,.07)' }, deco);
   }
 };
 
 const winding = {
   height: (count) => count * 72 + 60,
-  build(count, place, el, deco) {
-    const P = (t) => place(180 + 95 * Math.sin(t * 0.85 + 0.3), 40 + t * 72);
-    dust(el, deco, place, this.height(count), 24, 1);
+  build(count, place, el, deco, w) {
+    const P = (t) => place(w / 2 + (w / 2 - 85) * Math.sin(t * 0.85 + 0.3), 40 + t * 72);
+    dust(el, deco, place, this.height(count), 24, 1, w);
     return {
       nodes: Array.from({ length: count }, (_, i) => P(i)),
       seg: (i) => Array.from({ length: 15 }, (_, s) => P(i + s / 14)),
@@ -37,29 +37,34 @@ function honeyPath(count) {
 }
 const honeycomb = {
   height: (count) => honeyPath(count).at(-1)[1] * HS + 90,
-  build(count, place, el, deco) {
+  build(count, place, el, deco, w) {
     const cells = honeyPath(count), maxH = cells.at(-1)[1];
-    const at = (c, h) => place(45 + c * 1.5 * R, 40 + h * HS);
-    for (let c = -1; c <= 6; c++) for (let h = -2; h <= maxH + 2; h++) {
+    const CELL_W = 1.5 * R, MID = 3; // column 3 is the middle of the screen
+    const at = (c, h) => place(w / 2 + (c - MID) * CELL_W, 40 + h * HS);
+    const reach = Math.ceil((w / 2 + R) / CELL_W);
+    const widest = Math.max(1, Math.floor((w / 2 - 70) / CELL_W));
+    const spread = widest % 2 ? widest : widest - 1; // odd, so the road stays on the honeycomb's cells
+    for (let c = MID - reach; c <= MID + reach; c++) for (let h = -2; h <= maxH + 2; h++) {
       if ((c + h) % 2) continue;
       const [x, y] = at(c, h);
       el('polygon', { points: hexPts(x, y, R * 0.96), fill: 'none', stroke: 'rgba(120,160,255,.13)', 'stroke-width': 0.6 }, deco);
     }
-    const nodes = cells.map(([c, h]) => at(c, h));
+    const nodes = cells.map(([c, h]) => at(MID + (c - MID) * spread, h));
     return { nodes, seg: (i) => [nodes[i], nodes[i + 1]] };
   },
 };
 
 const circle = {
   height: (count) => Math.ceil(count / 4) * 124 + 80,
-  build(count, place, el, deco) {
+  build(count, place, el, deco, w) {
+    const rx = w / 2 - 100, stretch = rx / 80; // tracks are round on a phone and wider ovals on a tablet
     const P = (u) => {
       const k = Math.floor(u), th = Math.PI * (u - k), s = k % 2 ? -1 : 1;
-      return place(180 + s * 80 * Math.sin(th), 102 + k * 124 - 62 * Math.cos(th));
+      return place(w / 2 + s * rx * Math.sin(th), 102 + k * 124 - 62 * Math.cos(th));
     };
     for (let k = 0; k < Math.ceil(count / 4); k++) {
-      const [cx, cy] = place(180, 102 + k * 124);
-      for (let r = 24; r <= 80; r += 16) el('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,.07)', 'stroke-width': 0.6 }, deco);
+      const [cx, cy] = place(w / 2, 102 + k * 124);
+      for (let r = 24; r <= 80; r += 16) el('ellipse', { cx, cy, rx: r * stretch, ry: r, fill: 'none', stroke: 'rgba(255,255,255,.07)', 'stroke-width': 0.6 }, deco);
     }
     return {
       nodes: Array.from({ length: count }, (_, i) => P(i / 4)),
@@ -70,17 +75,17 @@ const circle = {
 
 const constellation = {
   height: (count) => count * 52 + 80,
-  build(count, place, el, deco) {
+  build(count, place, el, deco, w) {
     const h = this.height(count);
     const loc = Array.from({ length: count }, (_, i) =>
-      [180 + 110 * Math.sin(i * 2.1 + 1) * (0.6 + 0.4 * Math.cos(i * 0.7)), 44 + i * 52 + 5 * Math.sin(i * 3.3)]);
+      [w / 2 + (w / 2 - 70) * Math.sin(i * 2.1 + 1) * (0.6 + 0.4 * Math.cos(i * 0.7)), 44 + i * 52 + 5 * Math.sin(i * 3.3)]);
     const nodes = loc.map(([x, y]) => place(x, y));
     for (let i = 0; i + 2 < count; i++) { // faint extra lines between near neighbours
-      if (Math.hypot(loc[i][0] - loc[i + 2][0], loc[i][1] - loc[i + 2][1]) < 130)
+      if (Math.hypot(loc[i][0] - loc[i + 2][0], loc[i][1] - loc[i + 2][1]) < 130 * w / 360)
         el('line', { x1: nodes[i][0], y1: nodes[i][1], x2: nodes[i + 2][0], y2: nodes[i + 2][1], stroke: 'rgba(255,255,255,.08)', 'stroke-width': 0.6 }, deco);
     }
-    for (let k = 0; k < 70; k++) {
-      const [x, y] = place((k * 131) % 356 + 2, (k * 211) % (h - 10) + 5);
+    for (let k = 0; k < 70 * w / 360; k++) {
+      const [x, y] = place((k * 131) % (w - 4) + 2, (k * 211) % (h - 10) + 5);
       el('circle', { cx: x, cy: y, r: k % 5 === 0 ? 1.3 : 0.7, fill: `rgba(255,255,255,${0.1 + (k % 4) * 0.06})` }, deco);
     }
     return { nodes, seg: (i) => [nodes[i], nodes[i + 1]] };
