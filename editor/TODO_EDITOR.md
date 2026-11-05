@@ -82,10 +82,10 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
 | R1 | Kräver en träff (dagens ruta) | 1 | 1 | Klar i editorn |
-| R2 | Kräver 2 träffar | 1 | 1 | Öppen |
-| R3 | Oförstörbar (räknas inte när banan ska klaras) | 1 | 1 | Öppen |
-| R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Öppen – beslut krävs senare: hur stort område |
-| R5 | Rutorna ser olika ut per sort, så att de syns i både editorn och spelet | 1 | 1 | Klar i editorn, spelet återstår (S5) |
+| R2 | Kräver 2 träffar | 1 | 1 | Klar |
+| R3 | Oförstörbar (räknas inte när banan ska klaras) | 1 | 1 | Klar |
+| R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Klar – provisoriskt 3 × 3, även kedjereaktion |
+| R5 | Rutorna ser olika ut per sort, så att de syns i både editorn och spelet | 1 | 1 | Klar |
 
 ## Spelet (S)
 
@@ -93,14 +93,14 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Öppen |
-| S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Öppen |
+| S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Klar |
+| S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Klar – slumpad färgordning (rader, kolumner, diagonaler eller ringar) från en slumpad startfärg |
 | S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Öppen |
 | S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Öppen |
-| S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Öppen |
+| S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Klar – bombens område är provisoriskt 3 × 3 |
 | S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Öppen |
-| S7 | Fem rader till nederst i spelytan, 25 i stället för 20, för häftigare banor och svårare nivåer; kontrollera att det finns plats att spela på mindre iPhones | 1 | 1 | Klar i editorn, spelet återstår |
-| S8 | Spelet placerar banfilernas rader fast som i editorn, utan att flytta korta mönster nedåt | 1 | 1 | Öppen – görs ihop med S1 |
+| S7 | Fem rader till nederst i spelytan, 25 i stället för 20, för häftigare banor och svårare nivåer; kontrollera att det finns plats att spela på mindre iPhones | 1 | 1 | Klar |
+| S8 | Spelet placerar banfilernas rader fast som i editorn, utan att flytta korta mönster nedåt | 1 | 1 | Klar |
 | S9 | Taket flyttat ned till översta radens överkant, så att den ligger mot taket som de yttersta rutorna mot väggarna | 1 | 1 | Klar i spelet och editorn |
 
 ## Testspel (T)

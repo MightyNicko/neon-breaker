@@ -32,5 +32,18 @@
     "small": 0,
     "fast": 0
   },
-  "test": null
+  "test": {
+    "date": "2026-11-05",
+    "playable": true,
+    "difficulty": 3,
+    "notes": [
+      "Bot: cleared 30 of 30, 3 min 23 s on average."
+    ],
+    "bot": {
+      "runs": 30,
+      "cleared": 30,
+      "averageSeconds": 203,
+      "longestGapSeconds": 25
+    }
+  }
 }

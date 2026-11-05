@@ -29,6 +29,8 @@ export default {
   failed_text: 'Du förlorade ett liv.',
   retry: 'Försök igen',
   map: 'Karta',
+  levels_failed_title: 'Inga banor',
+  levels_failed: 'Banorna kunde inte laddas. Kontrollera anslutningen och starta spelet igen.',
   coming_soon: 'Fler banor snart',
   menu: 'Meny',
   settings: 'Inställningar',

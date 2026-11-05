@@ -1,10 +1,10 @@
 // Core breakout engine: fixed-step physics, cached glow sprites, cached brick layer.
-import { COLS, LEVELS } from './levels.js';
+import { COLS, LEVELS, HITS, EMPTY, TWO_HIT, SOLID, BOMB } from './levels.js';
 import { t } from '../core/i18n.js';
 
 export const W = 336;            // logical width (21 columns x 16)
 const CELL = W / COLS, BR = 14.5;
-const MIN_H = 480, MAX_H = 760;  // logical height range; real height follows the screen shape
+const MIN_H = 600, MAX_H = 760;  // logical height range; 600 leaves room for 25 rows above the paddle
 const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120, BALLS = 3;
 const MAX_ANGLE = 1.08;          // steepest paddle bounce, in radians from straight up
 const START_SPEED = 0.75, RAMP_TIME = 30; // each ball starts at 75 % of the level's speed and reaches it after 30 s
@@ -15,6 +15,7 @@ const TOP = 48;                  // below the safe area: the ceiling, and the to
 const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick outlines are 1 point wide
 const MAX_PARTICLES = 160;
 const FLASH_TIME = 0.16;
+const BOMB_RADIUS = 1;            // a bomb clears the bricks around it, unbreakable ones too (provisional: 3 x 3)
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
 
 const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
@@ -48,10 +49,10 @@ export class Game {
     this.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     // whole screen pixels per brick cell, so every brick edge lands on a pixel and stays sharp
     this.s = Math.max(1, Math.floor(CELL * Math.min(vw / W, vh / MIN_H) * this.dpr)) / (CELL * this.dpr);
-    this.fullWidth = vw / W <= vh / MIN_H; // the field spans the screen width (portrait phones)
     const visW = vw / this.s, visH = vh / this.s;
     this.H = Math.min(visH, MAX_H);
     this.offX = (visW - W) / 2;
+    this.fullWidth = this.offX * this.s < 4; // phones: the outer bricks reach the screen edges; tablets get side margins
     this.offY = (visH - this.H) / 2;
     this.k = this.s * this.dpr;
     this.safe.top = Math.max(0, safeTopPx / this.s - this.offY);
@@ -67,9 +68,8 @@ export class Game {
     if (this.paddle) this.paddle.x = Math.min(Math.max(this.paddle.x, PW / 2), W - PW / 2);
   }
 
-  layoutGrid() { // move short patterns down into the empty field, keeping room to play below them
-    const top = this.safe.top + TOP;
-    this.gy = Math.round(top + Math.max(0, this.paddleY - top - (this.rows || 0) * CELL - 140) * 0.4);
+  layoutGrid() { // row 1 always has the same place, as in the editor, against the ceiling
+    this.gy = Math.round(this.safe.top + TOP);
     this.layoutBricks();
   }
 
@@ -97,19 +97,19 @@ export class Game {
     this.rows = level.grid.length;
     this.layoutGrid();
     this.tutorial = opts.tutorial ? 1 : 0;
-    this.alive = new Uint8Array(COLS * this.rows);
+    this.type = new Uint8Array(COLS * this.rows);  // EMPTY once a brick is gone
+    this.hits = new Uint8Array(COLS * this.rows);  // hits left
     this.hue = new Uint16Array(COLS * this.rows);
     this.remaining = 0;
+    const colour = randomColours(this.rows);
     level.grid.forEach((row, y) => {
       for (let x = 0; x < COLS; x++) {
-        if (row[x] !== '#') continue;
-        const i = y * COLS + x;
-        this.alive[i] = 1;
-        this.remaining++;
-        let h;
-        if (level.hue === 'row') h = (y * 45 + 300) % 360;
-        else h = (Math.atan2(y - (this.rows - 1) / 2, x - (COLS - 1) / 2) * 180 / Math.PI + 360) % 360;
-        this.hue[i] = (Math.round(h / 15) * 15) % 360;
+        const t = row[x], i = y * COLS + x;
+        if (t === EMPTY) continue;
+        this.type[i] = t;
+        this.hits[i] = HITS[t];
+        if (t !== SOLID) this.remaining++;
+        this.hue[i] = colour(x, y);
       }
     });
     this.balls = BALLS;
@@ -245,7 +245,7 @@ export class Game {
     const w = Math.min(1, (this.sinceHit - STALL_AFTER) / (STALL_FULL - STALL_AFTER));
     if (w <= 0) return ang;
     let pick = -1, n = 0;
-    for (let i = 0; i < this.alive.length; i++) if (this.alive[i] && Math.random() * ++n < 1) pick = i;
+    for (let i = 0; i < this.type.length; i++) if (this.type[i] && this.type[i] !== SOLID && Math.random() * ++n < 1) pick = i;
     if (pick < 0) return ang;
     const b = this.ball;
     const tx = this.colX[pick % COLS] + this.brW / 2, ty = this.rowY0 + Math.floor(pick / COLS) * CELL + this.brW / 2;
@@ -271,25 +271,44 @@ export class Game {
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const i = r * COLS + c;
-        if (!this.alive[i]) continue;
+        const t = this.type[i];
+        if (!t) continue;
         const rx = this.colX[c], ry = this.rowY0 + r * CELL;
         const nx = Math.max(rx, Math.min(b.x, rx + bw)), ny = Math.max(ry, Math.min(b.y, ry + bw));
         const dx = b.x - nx, dy = b.y - ny;
-        if (dx * dx + dy * dy < BALL_R * BALL_R) {
-          this.alive[i] = 0;
-          this.remaining--;
-          this.sinceHit = 0;
+        if (dx * dx + dy * dy >= BALL_R * BALL_R) continue;
+        if (t === SOLID) { this.sfx('wall'); return true; } // unbreakable: the ball just bounces
+        this.sinceHit = 0;
+        if (--this.hits[i] > 0) { // a two-hit brick or a bomb that is not done yet
           this.dirty = true;
-          this.burst(rx + bw / 2, ry + bw / 2, this.hue[i]);
-          this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME });
-          this.ballGlow = 1;
+          this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME * 0.6 });
           this.sfx('brick', r);
-          if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); }
           return true;
         }
+        this.breakBrick(i);
+        if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); }
+        return true;
       }
     }
     return false;
+  }
+
+  // removes a brick; a bomb takes the bricks around it with it, unbreakable ones and other bombs too
+  breakBrick(i) {
+    const t = this.type[i], c = i % COLS, r = Math.floor(i / COLS);
+    const rx = this.colX[c], ry = this.rowY0 + r * CELL, bw = this.brW;
+    this.type[i] = EMPTY; this.hits[i] = 0;
+    if (t !== SOLID) this.remaining--;
+    this.dirty = true;
+    this.burst(rx + bw / 2, ry + bw / 2, this.hue[i]);
+    this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME });
+    this.ballGlow = 1;
+    if (t !== BOMB) { this.sfx('brick', r); return; }
+    this.sfx('bomb');
+    for (let y = r - BOMB_RADIUS; y <= r + BOMB_RADIUS; y++) for (let x = c - BOMB_RADIUS; x <= c + BOMB_RADIUS; x++) {
+      if (x < 0 || x >= COLS || y < 0 || y >= this.rows) continue;
+      if (this.type[y * COLS + x]) this.breakBrick(y * COLS + x);
+    }
   }
 
   loseBall() {
@@ -369,22 +388,48 @@ export class Game {
   }
   blit(g, s, x, y) { g.drawImage(s.c, x, y, s.w, s.h); }
 
-  brickSprite(hue) { // drawn in screen pixels: soft glow underneath, then a sharp whole-pixel outline
-    const key = 'b' + hue;
+  // Drawn in screen pixels: soft glow underneath, then sharp whole-pixel outlines.
+  // Normal: one outline. Two hits: a second, inner outline until the first hit. Unbreakable: grey and striped.
+  // Bomb: orange with the hits left written on it.
+  brickSprite(hue, type, hits) {
+    const key = `b${type}.${hits}.${type === SOLID || type === BOMB ? 0 : hue}`;
     if (this.sprites[key]) return this.sprites[key];
     const b = this.brPx, pad = Math.ceil(GLOW_PAD * this.k), lw = Math.max(1, Math.round(LINE_PT * this.dpr));
     const c = document.createElement('canvas');
     c.width = c.height = b + pad * 2;
     const g = c.getContext('2d');
-    g.shadowColor = hsl(hue, 100, 60); g.shadowBlur = 9 * this.k;
-    g.strokeStyle = hsl(hue, 100, 60, 0.8); g.lineWidth = lw;
-    g.strokeRect(pad + lw / 2, pad + lw / 2, b - lw, b - lw);
-    g.shadowBlur = 0;
-    g.clearRect(pad, pad, b, b);
-    g.fillStyle = hsl(hue, 100, 60, 0.18); g.fillRect(pad + lw, pad + lw, b - 2 * lw, b - 2 * lw);
-    g.fillStyle = hsl(hue, 100, 66);
-    g.fillRect(pad, pad, b, lw); g.fillRect(pad, pad + b - lw, b, lw);
-    g.fillRect(pad, pad + lw, lw, b - 2 * lw); g.fillRect(pad + b - lw, pad + lw, lw, b - 2 * lw);
+    const outline = (x, y, s, colour) => {
+      g.fillStyle = colour;
+      g.fillRect(x, y, s, lw); g.fillRect(x, y + s - lw, s, lw);
+      g.fillRect(x, y + lw, lw, s - 2 * lw); g.fillRect(x + s - lw, y + lw, lw, s - 2 * lw);
+    };
+    const glow = type === SOLID ? null : type === BOMB ? 'rgba(255,90,60,.9)' : hsl(hue, 100, 60);
+    if (glow) {
+      g.shadowColor = glow; g.shadowBlur = 9 * this.k;
+      g.strokeStyle = type === BOMB ? 'rgba(255,106,60,.8)' : hsl(hue, 100, 60, 0.8); g.lineWidth = lw;
+      g.strokeRect(pad + lw / 2, pad + lw / 2, b - lw, b - lw);
+      g.shadowBlur = 0;
+      g.clearRect(pad, pad, b, b);
+    }
+    if (type === SOLID) {
+      g.fillStyle = '#1c1e29'; g.fillRect(pad, pad, b, b);
+      g.save(); g.beginPath(); g.rect(pad, pad, b, b); g.clip();
+      g.strokeStyle = '#353a4f'; g.lineWidth = Math.max(1, Math.round(this.dpr));
+      const step = Math.max(3, Math.round(b * 0.2));
+      g.beginPath();
+      for (let k = -b; k < b; k += step) { g.moveTo(pad + k, pad + b); g.lineTo(pad + k + b, pad); }
+      g.stroke(); g.restore();
+      outline(pad, pad, b, '#9aa0b8');
+    } else if (type === BOMB) {
+      g.fillStyle = 'rgba(255,90,60,.35)'; g.fillRect(pad + lw, pad + lw, b - 2 * lw, b - 2 * lw);
+      outline(pad, pad, b, '#ff6a3c');
+      g.fillStyle = '#ffd9a0'; g.font = `800 ${Math.round(b * 0.58)}px -apple-system, system-ui, sans-serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(hits), pad + b / 2, pad + b / 2 + b * 0.04);
+    } else {
+      g.fillStyle = hsl(hue, 100, 60, 0.18); g.fillRect(pad + lw, pad + lw, b - 2 * lw, b - 2 * lw);
+      outline(pad, pad, b, hsl(hue, 100, 66));
+      if (type === TWO_HIT && hits > 1) { const d = lw * 3; outline(pad + d, pad + d, b - 2 * d, hsl(hue, 100, 72)); }
+    }
     return (this.sprites[key] = { c, pad });
   }
   ballSprite() {
@@ -449,8 +494,8 @@ export class Game {
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < COLS; c++) {
         const i = r * COLS + c;
-        if (!this.alive[i]) continue;
-        const sp = this.brickSprite(this.hue[i]);
+        if (!this.type[i]) continue;
+        const sp = this.brickSprite(this.hue[i], this.type[i], this.hits[i]);
         g.drawImage(sp.c, this.colPx[c] - sp.pad, this.rowTopPx + r * this.cellPx - sp.pad);
       }
     }
@@ -548,4 +593,17 @@ export class Game {
       this.blit(g, hand, x - 22, y - 8 + (1 - press) * 8);
     }
   }
+}
+
+// A new colour layout every time a level starts: rows, columns, diagonals or rings, from a random starting hue.
+// Hues are rounded to steps of 15 so the brick sprites can be shared.
+function randomColours(rows) {
+  const base = Math.random() * 360, mode = Math.floor(Math.random() * 4), cx = (COLS - 1) / 2, cy = (rows - 1) / 2;
+  const raw = [
+    (x, y) => y * 45,
+    (x) => x * 17,
+    (x, y) => (x + y) * 14,
+    (x, y) => Math.hypot(x - cx, (y - cy) * 1.4) * 32,
+  ][mode];
+  return (x, y) => Math.round(((base + raw(x, y)) % 360) / 15) * 15 % 360;
 }

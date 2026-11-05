@@ -96,6 +96,7 @@ const SOUNDS = {
   wall() { tone(130, 0.04, { type: 'square', vol: 0.12 }); },
   launch() { tone(220, 0.16, { type: 'triangle', vol: 0.6, to: 660 }); },
   lose() { tone(330, 0.32, { type: 'sawtooth', vol: 0.3, to: 90 }); },
+  bomb() { tone(160, 0.35, { type: 'sawtooth', vol: 0.55, to: 40 }); tone(90, 0.25, { type: 'square', vol: 0.3, to: 30, delay: 0.03 }); },
   gameover() {
     [330, 262, 196].forEach((f, i) => tone(f, 0.26, { type: 'triangle', vol: 0.6, delay: i * 0.16 }));
   },

@@ -1,42 +1,44 @@
-// Levels are ASCII grids ('#' brick, '.' empty), 21 columns wide.
-// `hue` picks how bricks are coloured: 'row' | 'angle' (around the grid centre).
-export const COLS = 21;
+// Levels are read from levels/*.json, the files the editor (editor/index.html) writes; levels/index.json lists them.
+// Grid rows are text: '.' empty, '1' normal, '2' two hits, 'X' unbreakable, 'B' bomb (5 hits).
+// Row 1 always has the same place on screen, so a level looks exactly as drawn in the editor.
+export const COLS = 21, ROWS = 25, FORMAT = 1;
+export const EMPTY = 0, NORMAL = 1, TWO_HIT = 2, SOLID = 3, BOMB = 4;
+const CHARS = '.12XB';
+export const HITS = [0, 1, 2, 0, 5];     // hits each type takes; unbreakable bricks never break
+const SPEED = { min: 150, max: 450, start: 270 };
 
-const build = (rows, fn) =>
-  Array.from({ length: rows }, (_, y) =>
-    Array.from({ length: COLS }, (_, x) => (fn(x, y) ? '#' : '.')).join(''));
+export let LEVELS = [];                 // sorted by number; filled by loadLevels()
+export function setLevels(list) { LEVELS = list; }
 
-const hex = (x, y, cy) => {
-  const dx = Math.abs(x - 10), dy = Math.abs(y - cy);
-  return Math.max(dy * 0.866 + dx * 0.5, dx);
-};
+export const fileName = (id) => `levels/level-${String(id).padStart(3, '0')}.json`;
 
-export const LEVELS = [
-  { id: 1, speed: 250, hue: 'row',
-    grid: build(9, (x, y) => y % 2 === 1 && x >= 2 && x <= 18) },
-  { id: 2, speed: 262, hue: 'angle',
-    grid: build(13, (x, y) => (x + y) % 2 === 0 && Math.abs(x - 10) * 0.7 + Math.abs(y - 6) <= 6.6) },
-  { id: 3, speed: 275, hue: 'angle',
-    grid: build(17, (x, y) => {
-      const d = hex(x, y, 8);
-      return (d >= 8.2 && d < 9.6) || (d >= 4.4 && d < 5.8);
-    }) },
-  { id: 4, speed: 290, hue: 'angle',
-    grid: build(16, (x, y) => {
-      const px = (x - 10) / 8.6, py = (8.2 - y) / 7.4 + 0.15;
-      return Math.pow(px * px + py * py - 1, 3) - px * px * py * py * py <= 0;
-    }) },
-  { id: 5, speed: 305, hue: 'angle',
-    grid: build(15, (x, y) => {
-      const layer = Math.min(x, y, COLS - 1 - x, 14 - y);
-      if (layer % 2 !== 0 || layer > 6) return false;
-      const gapSide = (layer / 2) % 2; // alternate which side has the opening
-      if (gapSide === 0 && y === 14 - layer && Math.abs(x - 10) <= 1) return false;
-      if (gapSide === 1 && y === layer && Math.abs(x - 10) <= 1) return false;
-      return true;
-    }) },
-];
+// Never trust a file: check every field and refuse what the game cannot play.
+export function parseLevel(text) {
+  const f = JSON.parse(text);
+  if (!f || !Number.isInteger(f.format) || f.format < 1 || f.format > FORMAT) throw new Error('unknown level format');
+  if (!Number.isInteger(f.id) || f.id < 1) throw new Error('level number missing');
+  if (!Array.isArray(f.grid) || f.grid.length > ROWS) throw new Error(`more than ${ROWS} rows`);
+  const grid = f.grid.map((row, y) => {
+    if (typeof row !== 'string' || row.length !== COLS || [...row].some((ch) => !CHARS.includes(ch))) throw new Error(`bad row ${y + 1}`);
+    return [...row].map((ch) => CHARS.indexOf(ch));
+  });
+  const speed = Number.isFinite(f.speed) ? Math.min(SPEED.max, Math.max(SPEED.min, Math.round(f.speed))) : SPEED.start;
+  const powerups = {};
+  for (const [k, n] of Object.entries(f.powerups || {})) if (Number.isInteger(n) && n >= 0 && n <= 99) powerups[k] = n;
+  return { id: f.id, speed, grid, powerups };
+}
 
+// read(path) returns the file's text; in the browser it fetches, in tests it reads from disk.
+const fetchText = (p) => fetch(p, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r.text(); });
+export async function loadLevels(read = fetchText) {
+  const index = JSON.parse(await read('levels/index.json'));  // read may return text or a promise of it
+  const ids = (Array.isArray(index.levels) ? index.levels : []).filter((id) => Number.isInteger(id) && id > 0);
+  const levels = await Promise.all(ids.map(async (id) => parseLevel(await read(fileName(id)))));
+  LEVELS = levels.filter((l) => countBricks(l) > 0).sort((a, b) => a.id - b.id);
+  return LEVELS;
+}
+
+// bricks that must be broken to clear the level
 export function countBricks(level) {
-  return level.grid.reduce((n, row) => n + [...row].filter((c) => c === '#').length, 0);
+  return level.grid.reduce((n, row) => n + row.filter((t) => t !== EMPTY && t !== SOLID).length, 0);
 }

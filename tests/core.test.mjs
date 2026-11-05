@@ -1,18 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS, COLS, countBricks } from '../src/game/levels.js';
+import { readFileSync } from 'node:fs';
+import { loadLevels, parseLevel, COLS, ROWS, SOLID, countBricks } from '../src/game/levels.js';
 import * as lives from '../src/core/lives.js';
 import { sanitize, defaults, MAX_LIVES } from '../src/core/storage.js';
 
-test('levels: 21 columns, only # and ., at least one brick, speeds increase', () => {
-  let prev = 0;
-  for (const l of LEVELS) {
-    assert.ok(l.grid.length > 0 && l.grid.length <= 20);
-    for (const row of l.grid) { assert.equal(row.length, COLS); assert.match(row, /^[#.]+$/); }
-    assert.ok(countBricks(l) > 0);
-    assert.ok(l.speed > prev); prev = l.speed;
+test('levels: every file in levels/ loads, in number order, with something to break', async () => {
+  const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+  const levels = await loadLevels(read);
+  const index = JSON.parse(read('levels/index.json')).levels;
+  assert.ok(levels.length > 0);
+  assert.deepEqual(levels.map((l) => l.id), [...index].sort((a, b) => a - b));
+  for (const l of levels) {
+    assert.ok(l.grid.length <= ROWS);
+    for (const row of l.grid) assert.equal(row.length, COLS);
+    assert.ok(countBricks(l) > 0, `level ${l.id} has a brick to break`);
   }
-  assert.equal(LEVELS.length, 5);
+});
+
+test('levels: bad files are refused, unbreakable bricks are not counted', () => {
+  const ok = { format: 1, id: 3, speed: 270, grid: ['.'.repeat(20) + '1', 'X'.repeat(21)], powerups: { wide: 2 } };
+  const l = parseLevel(JSON.stringify(ok));
+  assert.equal(l.grid[1][0], SOLID);
+  assert.equal(countBricks(l), 1);
+  assert.deepEqual(l.powerups, { wide: 2 });
+  const bad = (change) => assert.throws(() => parseLevel(JSON.stringify({ ...ok, ...change })));
+  bad({ format: 2 });
+  bad({ id: 0 });
+  bad({ grid: Array(26).fill('.'.repeat(21)) });
+  bad({ grid: ['.'.repeat(20)] });
+  bad({ grid: ['#'.repeat(21)] });
 });
 
 test('lives: regenerate one per 20 minutes and stop at max', () => {

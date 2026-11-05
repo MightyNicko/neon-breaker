@@ -29,6 +29,8 @@ export default {
   failed_text: 'You lost a life.',
   retry: 'Try again',
   map: 'Map',
+  levels_failed_title: 'No levels',
+  levels_failed: 'The levels could not be loaded. Check the connection and start the game again.',
   coming_soon: 'More levels soon',
   menu: 'Menu',
   settings: 'Settings',

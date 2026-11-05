@@ -1,4 +1,4 @@
-import { LEVELS } from './game/levels.js';
+import { LEVELS, loadLevels } from './game/levels.js';
 import { Game } from './game/game.js';
 import { Title } from './title/title.js';
 import { buildMap } from './map/map.js';
@@ -12,6 +12,9 @@ import * as audio from './core/audio.js';
 import { VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
+// The levels come from levels/*.json. Without them the game still starts, and the map says why nothing is playable.
+let levelsFailed = false;
+try { await loadLevels(); } catch (e) { levelsFailed = true; }
 const state = storage.load(LEVELS.length + 1, LANGS);
 setLang(state.lang ?? DEFAULT_LANG);
 lives.refresh(state);
@@ -29,7 +32,7 @@ function show(name) {
   screen = name;
   for (const k in screens) screens[k].classList.toggle('hidden', k !== name);
   if (name === 'title') { resizeTitle(); title.start(); } else title.stop();
-  if (name === 'map') renderMap(true);
+  if (name === 'map') { renderMap(true); if (levelsFailed) showModal({ title: t('levels_failed_title'), text: t('levels_failed'), buttons: [{ label: t('close'), primary: true }] }); }
   else if (name === 'game') resizeGame();
   else if (name === 'settings') renderSettings();
 }

@@ -36,5 +36,18 @@
     "small": 0,
     "fast": 0
   },
-  "test": null
+  "test": {
+    "date": "2026-11-05",
+    "playable": false,
+    "difficulty": 5,
+    "notes": [
+      "Practically impossible: the bot cleared it in 0 of 30 tries within 15 minutes."
+    ],
+    "bot": {
+      "runs": 30,
+      "cleared": 0,
+      "averageSeconds": 0,
+      "longestGapSeconds": 900
+    }
+  }
 }

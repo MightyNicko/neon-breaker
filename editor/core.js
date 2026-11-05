@@ -170,7 +170,7 @@
   // Row 1 of the editor's grid always starts at the same place on the phone, so the grid is the phone 1:1.
   // The ceiling is the top of row 1, so the top row lies against it like the outer columns lie against the walls.
   // (The game moves short formula levels down today; levels from files will use these fixed rows.)
-  const GAME = { W: 336, CELL: 16, BR: 14.5, MIN_H: 480, MAX_H: 760 };
+  const GAME = { W: 336, CELL: 16, BR: 14.5, MIN_H: 600, MAX_H: 760 };
   function gameLayout(screen) {
     const { W, CELL, MIN_H, MAX_H } = GAME;
     const s = Math.min(screen.w / W, screen.h / MIN_H);
