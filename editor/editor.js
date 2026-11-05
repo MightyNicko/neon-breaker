@@ -649,7 +649,12 @@
       const out = [];
       if (Number.isInteger(t.difficulty)) out.push(msg('info', 'Difficulty ' + '●'.repeat(t.difficulty) + '○'.repeat(Math.max(0, 5 - t.difficulty))));
       if (typeof t.playable === 'boolean') out.push(msg(t.playable ? 'ok' : 'warn', t.playable ? 'Can be cleared' : 'Cannot be cleared'));
-      for (const n of Array.isArray(t.notes) ? t.notes : []) out.push(msg('warn', String(n)));
+      const bot = t.bot && typeof t.bot === 'object' ? t.bot : null, time = (s) => (s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);
+      if (bot && bot.cleared > 0 && Number.isInteger(bot.fastestSeconds)) {
+        out.push(msg('info', `Bot cleared it ${bot.cleared} of ${bot.runs} times`));
+        out.push(msg('info', `Fastest ${time(bot.fastestSeconds)} · average ${time(bot.averageSeconds)} · slowest ${time(bot.slowestSeconds)}`));
+      }
+      for (const n of Array.isArray(t.notes) ? t.notes : []) if (!/^Bot: /.test(n)) out.push(msg('warn', String(n)));
       if (t.date) out.push(msg('info', 'Tested ' + t.date));
       box.replaceChildren(...out);
     }

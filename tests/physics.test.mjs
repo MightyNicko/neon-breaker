@@ -291,28 +291,40 @@ test('map roads: every node stays on the map at phone, tablet and desktop widths
   }
 });
 
-test('anti-stall: no change before the limit, aims at a brick after it, never too shallow', () => {
+test('loop breaker: the paddle decides the angle; only the same hit three times in a row gets a small nudge', () => {
   const g = newGame();
-  g.sinceHit = 7;
-  assert.equal(g.antiStall(0.3), 0.3);
-  g.sinceHit = 60;
-  for (let i = 0; i < 200; i++) assert.ok(Math.abs(g.antiStall(0)) <= MAX_ANGLE);
-  g.type.fill(0);
-  assert.equal(g.antiStall(0.3), 0.3, 'nothing to aim at');
+  for (let i = 0; i < 2; i++) assert.equal(g.breakLoop(0.3, 100), 0.3, 'the first two identical hits are left alone');
+  const nudged = g.breakLoop(0.3, 100);
+  const deg = Math.abs(nudged - 0.3) * 180 / Math.PI;
+  assert.ok(deg >= 2.8 && deg <= 5.8, `the third is nudged ${deg.toFixed(1)} degrees`);
+  assert.equal(g.breakLoop(0.3, 100), 0.3, 'and then it starts counting again');
+  // a moving paddle, or a different landing spot, is never touched
+  const g2 = newGame();
+  for (let i = 0; i < 20; i++) assert.equal(g2.breakLoop(0.3, 100 + i * 3), 0.3);
+  for (let i = 0; i < 20; i++) assert.equal(g2.breakLoop(i % 2 ? 0.3 : -0.3, 100), i % 2 ? 0.3 : -0.3);
 });
 
-test('anti-stall: a paddle that always hits dead centre still clears every level', () => {
+test('loop breaker: a hit at the end of the paddle always gives a steep bounce, however long since a brick broke', () => {
+  const g = newGame();
+  for (let i = 0; i < 10; i++) {
+    g.playTime = 100;
+    Object.assign(g.ball, { x: g.paddle.x + 31 + (i % 2) * 0.01, y: g.paddleY - 3, vx: 0, vy: g.speed });
+    g.hitPaddle();
+    const deg = Math.atan2(g.ball.vx, -g.ball.vy) * 180 / Math.PI;
+    assert.ok(deg > 50, `${deg.toFixed(0)} degrees`);
+  }
+});
+
+test('loop breaker: a paddle that always hits dead centre still clears every level', () => {
   for (let level = 0; level < 5; level++) {
     const g = newGame(level);
     g.launch();
-    let t = 0, last = 0, rem = g.remaining, worst = 0;
+    let t = 0;
     while (g.remaining > 0 && t < 7200) {
       g.paddle.x = Math.min(Math.max(g.ball.x, PW / 2), W - PW / 2);
       g.step(STEP);
       t += STEP;
-      if (g.remaining < rem) { rem = g.remaining; worst = Math.max(worst, t - last); last = t; }
     }
     assert.equal(g.remaining, 0, `level ${level + 1} not cleared after ${t.toFixed(0)}s`);
-    assert.ok(worst < 40, `level ${level + 1} had ${worst.toFixed(0)}s between bricks`);
   }
 });

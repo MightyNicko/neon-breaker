@@ -9,7 +9,9 @@ const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120, BALLS = 3;
 const MAX_ANGLE = 1.08;          // steepest paddle bounce, in radians from straight up
 const START_SPEED = 0.75, RAMP_TIME = 30; // each ball starts at 75 % of the level's speed and reaches it after 30 s
 const LAUNCH_MIN = 0.3, LAUNCH_SPREAD = 0.2; // launch angle in radians, to the side that was tapped
-const STALL_AFTER = 8, STALL_FULL = 20; // seconds without a brick before paddle bounces start and finish aiming at one
+// Loop breaker: the paddle always decides the angle, except when the ball lands on the same spot at the same angle
+// LOOP_HITS times in a row without breaking anything, so it would fly the same path again. Then it gets a small nudge.
+const LOOP_HITS = 3, LOOP_X = 1, LOOP_ANGLE = 0.01, LOOP_NUDGE = [0.05, 0.1]; // nudge of 3-6 degrees, either way
 const GLOW_PAD = 9;
 const TOP = 48;                  // below the safe area: the ceiling, and the top of the first brick row
 const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick outlines are 1 point wide
@@ -136,7 +138,7 @@ export class Game {
   resetBall() {
     this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0 };
     this.trail.length = 0;
-    this.sinceHit = 0;
+    this.paddleHits = [];
     this.playTime = 0;
     this.speed = this.level.speed * START_SPEED;
     this.state = 'ready';
@@ -193,7 +195,6 @@ export class Game {
   // ---------- physics ----------
   step(dt) {
     const b = this.ball;
-    this.sinceHit += dt;
     this.rampSpeed(dt);
     // x axis
     b.x += b.vx * dt;
@@ -225,7 +226,7 @@ export class Game {
     if (b.y <= py) { // top: the bounce angle follows where the ball lands
       if (b.vy <= 0) return;
       const off = Math.max(-1, Math.min(1, (b.x - px) / half));
-      const ang = this.antiStall(off * MAX_ANGLE);
+      const ang = this.breakLoop(off * MAX_ANGLE, b.x);
       b.y = py - BALL_R;
       b.vx = this.speed * Math.sin(ang);
       b.vy = -this.speed * Math.cos(ang);
@@ -241,16 +242,16 @@ export class Game {
     }
   }
 
-  antiStall(ang) { // the longer without a brick, the more the bounce aims at a random remaining one
-    const w = Math.min(1, (this.sinceHit - STALL_AFTER) / (STALL_FULL - STALL_AFTER));
-    if (w <= 0) return ang;
-    let pick = -1, n = 0;
-    for (let i = 0; i < this.type.length; i++) if (this.type[i] && this.type[i] !== SOLID && Math.random() * ++n < 1) pick = i;
-    if (pick < 0) return ang;
-    const b = this.ball;
-    const tx = this.colX[pick % COLS] + this.brW / 2, ty = this.rowY0 + Math.floor(pick / COLS) * CELL + this.brW / 2;
-    const aim = ang + (Math.atan2(tx - b.x, b.y - ty) - ang) * w;
-    return Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, aim));
+  breakLoop(ang, x) {
+    const h = this.paddleHits;
+    const loop = h.length >= LOOP_HITS - 1
+      && h.slice(1 - LOOP_HITS).every((p) => Math.abs(p.x - x) < LOOP_X && Math.abs(p.ang - ang) < LOOP_ANGLE);
+    h.push({ x, ang });
+    if (h.length > LOOP_HITS) h.shift();
+    if (!loop) return ang;
+    h.length = 0;
+    const nudge = (LOOP_NUDGE[0] + Math.random() * (LOOP_NUDGE[1] - LOOP_NUDGE[0])) * (Math.random() < 0.5 ? -1 : 1);
+    return Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang + nudge));
   }
 
   keepAngle() { // avoid near-horizontal ping-pong
@@ -278,7 +279,7 @@ export class Game {
         const dx = b.x - nx, dy = b.y - ny;
         if (dx * dx + dy * dy >= BALL_R * BALL_R) continue;
         if (t === SOLID) { this.sfx('wall'); return true; } // unbreakable: the ball just bounces
-        this.sinceHit = 0;
+        this.paddleHits.length = 0; // the path has changed, so it is no loop
         if (--this.hits[i] > 0) { // a two-hit brick or a bomb that is not done yet
           this.dirty = true;
           this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME * 0.6 });

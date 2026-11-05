@@ -10,7 +10,7 @@
 |----|---------|------|-------------|--------|
 | B1 | Bollen går igenom paddelns sida/underkant (bara ovansidan studsar) | 1 | 2 | Klar |
 | B2 | Hörnträff mot två rutor samtidigt ger märkliga studsar (bara en axel vänds) | 2 | 2 | Öppen |
-| B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | 1 | 1 | Klar – orsaken var lodräta loopar och långa uppehåll, inte vågrät studs |
+| B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | 1 | 1 | Klar – loopbrytare: paddeln styr alltid vinkeln, bara samma träff tre gånger i rad får en knuff på 3–6° |
 | B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Öppen |
 
 ## Grafik (G)

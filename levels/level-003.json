@@ -35,13 +35,16 @@
     "playable": true,
     "difficulty": 3,
     "notes": [
-      "Bot: cleared 30 of 30, 3 min 24 s on average."
+      "Long waits between bricks: up to 122 s.",
+      "Bot: cleared 30 of 30. Fastest 2 min 13 s, average 3 min 27 s, slowest 5 min 55 s."
     ],
     "bot": {
       "runs": 30,
       "cleared": 30,
-      "averageSeconds": 204,
-      "longestGapSeconds": 25
+      "fastestSeconds": 133,
+      "averageSeconds": 207,
+      "slowestSeconds": 355,
+      "longestGapSeconds": 122
     }
   }
 }

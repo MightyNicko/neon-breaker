@@ -35,15 +35,18 @@
   "test": {
     "date": "2026-11-05",
     "playable": true,
-    "difficulty": 4,
+    "difficulty": 5,
     "notes": [
-      "Bot: cleared 30 of 30, 3 min 44 s on average."
+      "Long waits between bricks: up to 104 s.",
+      "Bot: cleared 30 of 30. Fastest 2 min 25 s, average 4 min 9 s, slowest 6 min 13 s."
     ],
     "bot": {
       "runs": 30,
       "cleared": 30,
-      "averageSeconds": 224,
-      "longestGapSeconds": 25
+      "fastestSeconds": 145,
+      "averageSeconds": 249,
+      "slowestSeconds": 373,
+      "longestGapSeconds": 104
     }
   }
 }
