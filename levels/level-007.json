@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": 7,
+  "zone": 1,
+  "speed": 250,
+  "grid": [
+    ".....................",
+    ".....................",
+    ".....................",
+    ".XXXXXXXXXXXXXXXXXXX.",
+    ".X.................X.",
+    ".X.XXXXXXXXXXXXXXX.X.",
+    ".X.X.............X.X.",
+    ".X.X.XXXXXXXXXXX.X.X.",
+    ".X.X.X.........X.X.X.",
+    ".X.X.X.XXXXXXX.X.X.X.",
+    ".X.X.X.X.....X.X.X.X.",
+    ".X.X.X.X.XXX.X.X.X.X.",
+    ".X.X.X.X.X1X.X.X.X.X.",
+    ".X.X.X.X.X.X.X.X.X.X.",
+    ".X.X.X.X.X...X.X.X.X.",
+    ".X.X.X.X.XXXXX.X.X.X.",
+    ".X.X.X.X.......X.X.X.",
+    ".X.X.X.XXXXXXXXX.X.X.",
+    ".X.X.X...........X.X.",
+    ".X.X.XXXXXXXXXXXXX.X.",
+    ".X.X...............X.",
+    ".X.XXXXXXXXXXXXXXXXX."
+  ],
+  "powerups": {
+    "wide": 0,
+    "slow": 0,
+    "multi": 0,
+    "fire": 0,
+    "gun": 0,
+    "small": 0,
+    "fast": 0
+  },
+  "test": null
+}

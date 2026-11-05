@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Breaker – Editor</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header class="titlebar">
+  <strong>Neon Breaker – Editor</strong>
+  <span id="where" class="dim"></span>
+  <span class="spacer"></span>
+  <span id="status" class="status"></span>
+  <button id="btn-folder" class="btn" type="button">Choose levels folder</button>
+</header>
+
+<nav class="strip" id="strip" aria-label="Levels"></nav>
+
+<main class="body" id="body">
+  <section class="grid-area">
+    <div class="canvas-wrap" id="grid-wrap"><canvas id="grid"></canvas></div>
+    <div class="toolbar">
+      <div class="group" id="tools"></div>
+      <span class="sep"></span>
+      <div class="group">
+        <button class="btn" id="btn-mirror" type="button" title="Mirror left–right (S)">⇋ Mirror</button>
+        <button class="btn icon" id="btn-guide-v" type="button" title="Vertical centre line (V)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18" stroke-dasharray="3 3"/><path d="M5 5v14M19 5v14" opacity=".35"/></svg></button>
+        <button class="btn icon" id="btn-guide-h" type="button" title="Horizontal centre line (H)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18" stroke-dasharray="3 3"/><path d="M5 5h14M5 19h14" opacity=".35"/></svg></button>
+        <button class="btn icon" id="btn-undo" type="button" title="Undo (Ctrl+Z)">↶</button>
+        <button class="btn icon" id="btn-redo" type="button" title="Redo (Ctrl+Y)">↷</button>
+        <button class="btn" id="btn-clear" type="button" title="Remove all bricks and power-ups (can be undone)">Clear</button>
+      </div>
+      <span class="sep"></span>
+      <div class="group" id="types"></div>
+    </div>
+  </section>
+
+  <div class="splitter" id="split-1" role="separator" aria-orientation="vertical" title="Drag to change the width"></div>
+
+  <section class="phone-area">
+    <div class="h">iPhone 15 · as in the game</div>
+    <div class="phone-wrap" id="phone-wrap"><canvas id="phone"></canvas></div>
+  </section>
+
+  <div class="splitter" id="split-2" role="separator" aria-orientation="vertical" title="Drag to change the width"></div>
+
+  <aside class="panel">
+    <div class="h">Power-ups</div>
+    <div id="powerups"></div>
+
+    <div class="h">Level</div>
+    <div class="field"><span>Number</span><b id="f-id"></b></div>
+    <div class="field"><span>Zone</span><b id="f-zone"></b></div>
+    <div class="field"><span>Speed</span><select id="f-speed"></select></div>
+
+    <div class="h">Statistics</div>
+    <div class="stat" id="stats"></div>
+
+    <div class="h">Difficulty and checks</div>
+    <div id="test"></div>
+
+    <div class="actions">
+      <button class="btn primary" id="btn-play" type="button" disabled title="Available once the game reads the level files">▶ Play test</button>
+      <div class="row">
+        <button class="btn" id="btn-save" type="button" title="Save this level (Ctrl+S)">Save</button>
+        <button class="btn" id="btn-save-all" type="button" title="Save every level with unsaved changes (Ctrl+Shift+S)">Save all</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-copy" type="button" title="Copy to a new level">Duplicate</button>
+        <button class="btn danger" id="btn-delete" type="button" title="Delete this level">Delete</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="confirm">
+  <h3 id="confirm-title"></h3>
+  <p id="confirm-text"></p>
+  <div class="row">
+    <button class="btn" id="confirm-no" type="button">Cancel</button>
+    <button class="btn danger" id="confirm-yes" type="button"></button>
+  </div>
+</dialog>
+
+<script src="core.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

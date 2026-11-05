@@ -69,6 +69,15 @@ test('paddle underside: a ball below the paddle keeps falling and is lost', () =
   assert.ok(g.ball.y >= g.paddleY + PH + BALL_R);
 });
 
+test('ceiling: the ball turns at the top of the first brick row, so it cannot pass above the top row', () => {
+  const g = newGame();
+  const top = g.safe.top + 48;
+  Object.assign(g.ball, { x: 2, y: top + BALL_R + 1, vx: 0, vy: -g.speed });
+  for (let i = 0; i < 4; i++) g.step(STEP);
+  assert.ok(g.ball.vy > 0, 'bounced down');
+  assert.ok(g.ball.y - BALL_R >= top - 1e-9, 'never above the ceiling');
+});
+
 test('a rising ball is not caught by the paddle', () => {
   const g = newGame();
   Object.assign(g.ball, { x: W / 2, y: g.paddleY - BALL_R + 1, vx: 0, vy: -g.speed });

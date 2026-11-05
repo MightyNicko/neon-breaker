@@ -11,6 +11,7 @@ const START_SPEED = 0.75, RAMP_TIME = 30; // each ball starts at 75 % of the lev
 const LAUNCH_MIN = 0.3, LAUNCH_SPREAD = 0.2; // launch angle in radians, to the side that was tapped
 const STALL_AFTER = 8, STALL_FULL = 20; // seconds without a brick before paddle bounces start and finish aiming at one
 const GLOW_PAD = 9;
+const TOP = 48;                  // below the safe area: the ceiling, and the top of the first brick row
 const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick outlines are 1 point wide
 const MAX_PARTICLES = 160;
 const FLASH_TIME = 0.16;
@@ -67,7 +68,7 @@ export class Game {
   }
 
   layoutGrid() { // move short patterns down into the empty field, keeping room to play below them
-    const top = this.safe.top + 48;
+    const top = this.safe.top + TOP;
     this.gy = Math.round(top + Math.max(0, this.paddleY - top - (this.rows || 0) * CELL - 140) * 0.4);
     this.layoutBricks();
   }
@@ -201,7 +202,8 @@ export class Game {
     if (this.hitBrick()) { b.x -= b.vx * dt; b.vx = -b.vx; }
     // y axis
     b.y += b.vy * dt;
-    if (b.y < this.safe.top + BALL_R + 30) { b.y = this.safe.top + BALL_R + 30; b.vy = Math.abs(b.vy); this.keepAngle(); this.sfx('wall'); }
+    const ceiling = this.safe.top + TOP + BALL_R;
+    if (b.y < ceiling) { b.y = ceiling; b.vy = Math.abs(b.vy); this.keepAngle(); this.sfx('wall'); }
     if (this.hitBrick()) { b.y -= b.vy * dt; b.vy = -b.vy; this.keepAngle(); }
     this.hitPaddle();
     if (b.y - BALL_R > this.H) this.loseBall();
