@@ -1,0 +1,111 @@
+# TODO – banredigerare
+
+**Prioritet:** 1 = högst, 3 = lägst · **Komplexitet:** 1 = lägst, 3 = högst  
+**ID:** kategorins första bokstav + löpnummer i den ordning punkterna lades till (t.ex. V1, V2). Numren ändras aldrig.  
+**Ordning:** kategorier i bokstavsordning, punkter i nummerordning.  
+**Regel:** när spelets mekanik eller funktioner ändras uppdateras editorn bara efter att användaren har tillfrågats.
+
+## Filformat (F)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| F1 | En JSON-fil per bana i mappen levels/, som spelet läser direkt (ingen manuell omvandling) | 1 | 2 | Öppen |
+| F2 | Rutnätet sparas som läsbar text, en rad per rutrad (t.ex. "..##.."), så att ändringar syns tydligt i git | 1 | 1 | Öppen |
+| F3 | Versionsnummer för formatet i varje fil, så att spelet och editorn känner igen filer från en äldre editor | 1 | 1 | Öppen |
+| F4 | Konvertera de 5 befintliga banorna till filer så att de kan redigeras | 1 | 1 | Öppen |
+
+## Grund (G)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| G1 | Editorn körs offline på datorn i webbläsaren (Chrome eller Edge) | 1 | 2 | Öppen |
+| G2 | Spara och öppna banfiler direkt i projektmappen (webbläsarens filåtkomst) | 1 | 2 | Öppen |
+| G3 | Editorn ligger i samma repo, mappen editor/, med historik och backup på GitHub | 1 | 1 | Öppen – beslutat: samma repo |
+| G4 | Gränssnittet på svenska | 2 | 1 | Öppen |
+
+## Hantering (H)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| H1 | Autosparning i webbläsaren så att inget försvinner om fliken stängs | 1 | 1 | Öppen |
+| H2 | Översikt över alla 80 banor som små miniatyrer per zon | 2 | 2 | Öppen |
+| H3 | Byta ordning på banor och se svårighetskurvan i översikten | 2 | 2 | Öppen |
+| H4 | Kopiera och duplicera en bana | 2 | 1 | Öppen |
+| H5 | Mallar av befintliga former (hjärtat, hexagonen m.fl.) att utgå från | 3 | 2 | Öppen |
+
+## Inställningar (I)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| I1 | Banans nummer och zon | 1 | 1 | Öppen |
+| I2 | Banans fart eller svårighet | 1 | 1 | Öppen |
+| I3 | Plats för stjärnregeln när den är bestämd (jfr S2 i TODO.md) | 3 | 1 | Öppen – väntar på beslut om stjärnor |
+| I4 | Låsa en färgpalett för en viss bana (annars slumpas den, se S2) | 3 | 1 | Öppen – förslag |
+
+## Kontroll (K)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| K1 | Varna om banan inte går att klara, t.ex. om oförstörbara rutor stänger in andra rutor | 1 | 2 | Öppen |
+| K2 | Varna om det finns fler power-ups än rutor som kan bära dem | 1 | 1 | Öppen |
+| K3 | Statistik: antal rutor per sort och uppskattad svårighet | 2 | 1 | Öppen |
+| K4 | Låt boten spela banan många gånger och visa tid och om den fastnar (jfr T1 i TODO.md) | 2 | 3 | Öppen |
+
+## Power-ups (P)
+
+Ingen power-up finns i spelet än; varje sort måste byggas i spelet också (se S4).
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| P1 | Välja vilka power-ups som ska finnas på banan och hur många av varje | 1 | 1 | Öppen |
+| P2 | Bredare paddel – byggs först | 1 | 1 | Öppen |
+| P3 | Slow motion: bara bollen eller bollarna saktas ned | 2 | 2 | Öppen |
+| P4 | Multiboll: bollen blir 3; bollen förloras först när alla är borta | 2 | 2 | Öppen |
+| P5 | Eldboll som går igenom rutor, men inte igenom oförstörbara rutor | 2 | 2 | Öppen |
+| P6 | Maskingevär: klicka på skärmen för att skjuta | 2 | 3 | Öppen – beslut krävs när punkten tas: var man trycker för att skjuta, så att det inte krockar med att flytta paddeln |
+| P7 | Mindre paddel (negativ) | 2 | 1 | Öppen |
+| P8 | Snabbare boll (negativ) | 2 | 1 | Öppen |
+| P9 | Hur länge en power-up varar bestäms per power-up när den byggs; vad som händer när två krockar (t.ex. bredare och mindre paddel) | 1 | 1 | Öppen – beslut krävs för krockar: förslaget är att den senaste tar över |
+
+## Rutsorter (R)
+
+Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet också (se S5).
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| R1 | Kräver en träff (dagens ruta) | 1 | 1 | Öppen |
+| R2 | Kräver 2 träffar | 1 | 1 | Öppen |
+| R3 | Oförstörbar (räknas inte när banan ska klaras) | 1 | 1 | Öppen |
+| R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Öppen – beslut krävs senare: hur stort område |
+| R5 | Rutorna ser olika ut per sort, så att de syns i både editorn och spelet | 1 | 1 | Öppen |
+
+## Spelet (S)
+
+Ändringar i själva spelet som editorns banor kräver.
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Öppen |
+| S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Öppen |
+| S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Öppen |
+| S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Öppen |
+| S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Öppen |
+| S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Öppen |
+
+## Testspel (T)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| T1 | Provspela banan direkt i editorn med spelets riktiga fysik | 1 | 2 | Öppen |
+| T2 | Förhandsvisning i iPhone-format: var paddeln och det tomma fältet hamnar | 1 | 1 | Öppen |
+
+## Verktyg (V)
+
+| ID | Uppgift | Prio | Komplexitet | Status |
+|----|---------|------|-------------|--------|
+| V1 | Rutnät på 21 kolumner där man ritar rutor och väljer sort | 1 | 1 | Öppen |
+| V2 | Penna och sudd | 1 | 1 | Öppen |
+| V3 | Fyllning, rektangel och linje | 2 | 1 | Öppen |
+| V4 | Spegling: rita en halva, den andra speglas automatiskt | 1 | 1 | Öppen |
+| V5 | Ångra och gör om | 1 | 1 | Öppen |
+| V6 | Flytta hela mönstret | 2 | 1 | Öppen |

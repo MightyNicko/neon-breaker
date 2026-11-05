@@ -176,7 +176,26 @@ test('effects: a brick hit reports its sound and sets off the flash, a paddle hi
   Object.assign(g.ball, { x: W / 2, y: g.paddleY - BALL_R + 1, vx: 0, vy: 100 });
   g.hitPaddle();
   assert.equal(sounds.at(-1), 'paddle');
-  assert.equal(g.paddlePulse, 1);
+  assert.equal(g.paddlePulse, undefined, 'the paddle does not move when hit');
+  assert.equal(g.shake, undefined, 'there is no screen shake');
+});
+
+test('sharp bricks: whole screen pixels, outer bricks at the screen edges, gaps differ by at most one pixel', () => {
+  for (const [w, h, dpr] of [[393, 852, 3], [375, 667, 2], [430, 932, 3], [820, 1180, 2]]) {
+    Object.assign(globalThis.window, { innerWidth: w, innerHeight: h, devicePixelRatio: dpr });
+    const g = newGame();
+    const where = `${w}x${h}@${dpr}`;
+    assert.ok(Number.isInteger(16 * g.k), `${where}: a cell is whole pixels`);
+    assert.equal(g.colPx[0], 0, `${where}: first brick at the left edge`);
+    assert.equal(g.colPx[20] + g.brPx, g.canvas.width, `${where}: last brick at the right edge`);
+    const gaps = g.colPx.slice(1).map((x, c) => x - g.colPx[c] - g.brPx);
+    assert.ok(Math.max(...gaps) - Math.min(...gaps) <= 1, `${where}: gaps ${Math.min(...gaps)}..${Math.max(...gaps)}`);
+    assert.ok(Math.max(...gaps) < 2 * BALL_R * g.k, `${where}: the ball cannot fit between bricks`);
+    assert.ok(Number.isInteger(g.rowTopPx));
+    assert.ok(Math.abs(g.colX[0] * g.k + g.offX * g.k) < 1e-6, `${where}: physics matches the drawing`);
+    assert.ok(g.colX[0] <= 0 && g.colX[20] + g.brW >= W, `${where}: no room between the outer bricks and the walls`);
+  }
+  Object.assign(globalThis.window, { innerWidth: 820, innerHeight: 1180, devicePixelRatio: 1 });
 });
 
 test('map roads: every node stays on the map at phone, tablet and desktop widths', async () => {

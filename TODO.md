@@ -11,6 +11,7 @@
 | B1 | Bollen går igenom paddelns sida/underkant (bara ovansidan studsar) | 1 | 2 | Klar |
 | B2 | Hörnträff mot två rutor samtidigt ger märkliga studsar (bara en axel vänds) | 2 | 2 | Öppen |
 | B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | 1 | 1 | Klar – orsaken var lodräta loopar och långa uppehåll, inte vågrät studs |
+| B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Öppen |
 
 ## Grafik (G)
 
@@ -26,6 +27,8 @@
 | G8 | Displaytypsnitt för namn och rubriker | 3 | 1 | Öppen |
 | G9 | Eget ritat hjärta i stället för teckensnittsglyf | 3 | 1 | Öppen |
 | G10 | Ny hemskärmsikon (modern, ser bra ut på skärmen; ersätter den genererade hexagonikonen). Ska göras före allt annat. Skapas med tools/make-icons.py | 1 | 2 | Klar – ikon C (Krossen) |
+| G11 | Ta bort paddelns animation (sjunker och lyser) när bollen träffar den | 1 | 1 | Klar |
+| G12 | Knivskarpa rutor: full upplösning, 1 punkt tunn linje, kanter på hela pixlar och yttersta rutorna mot skärmkanten | 1 | 2 | Klar |
 
 ## Innehåll (I)
 
@@ -73,6 +76,7 @@
 | T5 | Dela upp main.js (skärmflöde/dialoger/liv) och game.js (fysik/rendering) | 3 | 2 | Öppen |
 | T6 | Liggande läge: "vrid enheten"-ruta eller bra liggande layout (iOS kan inte låsa riktning) | 2 | 2 | Öppen |
 | T7 | Klockfusk på liv/valuta: serverkontroll när valuta och butik införs | 3 | 3 | Öppen (jfr M1, S4) |
+| T8 | Fokus på iPhone i stället för iPad: allt testas och anpassas för iPhone först (jfr T2) | 1 | 2 | Öppen |
 
 ## Tillgänglighet (A)
 
@@ -90,3 +94,4 @@
 | U4 | Introduktion första gången: animerad hand och text på bana 1 (dra i fältet runt paddeln) | 2 | 1 | Klar |
 | U5 | Byt benämningen "upgrades" till "Power-Ups" (i TODO, S1 och all kommande text/kod) | 3 | 1 | Öppen |
 | U6 | Bredda kartan så att hela skärmbredden utnyttjas på iPad (idag en smal kolumn med tomma sidor) | 1 | 2 | Klar |
+| U7 | Skärmskakning som inställning, avstängd från början | 1 | 1 | Struken – skakningen är borttagen helt, ingen inställning |
