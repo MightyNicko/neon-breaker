@@ -39,20 +39,25 @@
   },
   "chances": {},
   "test": {
-    "date": "2026-11-05",
+    "date": "2026-11-06",
     "playable": true,
     "difficulty": 2,
     "notes": [
-      "Long waits between bricks: up to 83 s.",
-      "Bot: cleared 30 of 30. Fastest 1 min 57 s, average 2 min 53 s, slowest 4 min 34 s."
+      "Long waits between bricks: up to 150 s.",
+      "Bot: cleared 30 of 30. Fastest 1 min 38 s, average 2 min 42 s, slowest 5 min 11 s."
     ],
     "bot": {
       "runs": 30,
       "cleared": 30,
-      "fastestSeconds": 117,
-      "averageSeconds": 173,
-      "slowestSeconds": 274,
-      "longestGapSeconds": 83
+      "fastestSeconds": 98,
+      "averageSeconds": 162,
+      "slowestSeconds": 311,
+      "longestGapSeconds": 150,
+      "notCleared": 0,
+      "limitSeconds": 900,
+      "misses": 19,
+      "mostBalls": 1,
+      "problems": 0
     }
   }
 }

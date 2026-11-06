@@ -1,20 +1,14 @@
 // Tests every level file and writes the result into its "test" field, in the editor's own format.
-// Checks: every breakable brick can be reached, power-ups fit, and a bot plays the level many times on an iPhone 15.
+// Checks: every breakable brick can be reached, power-ups fit, and the bot of tools/bot.mjs plays the level many times
+// on an iPhone 15 with its own power-ups; it also reports any physics problem it finds.
 // Usage: node tools/test-levels.mjs [runs per level] [date]   (defaults: 30 runs, today)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-const ctx = new Proxy({}, { get: (t, k) => (k in t ? t[k] : () => ctx), set: (t, k, v) => { t[k] = v; return true; } });
-globalThis.window = { innerWidth: 393, innerHeight: 852, devicePixelRatio: 1 };
-globalThis.requestAnimationFrame = () => 0; globalThis.cancelAnimationFrame = () => {};
-globalThis.document = { createElement: () => ({ getContext: () => ctx, width: 0, height: 0 }) };
-const root = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]+$/, '');
+import { run, time, ROOT as root, levelsModule } from './bot.mjs';
 const RUNS = Number(process.argv[2] || 30), LIMIT = 900, DATE = process.argv[3] || new Date().toISOString().slice(0, 10);
+const SCREEN = [393, 852]; // iPhone 15
 const E = createRequire(import.meta.url)(root + '/editor/core.js');
-const { Game, W } = await import('file:///' + root + '/src/game/game.js');
-const { loadLevels } = await import('file:///' + root + '/src/game/levels.js');
-const levels = await loadLevels((p) => readFileSync(root + '/' + p, 'utf8'));
-const STEP = 1 / 120, PW = 64;
+const levels = await levelsModule.loadLevels((p) => readFileSync(root + '/' + p, 'utf8'));
 const mmss = (sec) => { const s = Math.round(sec); return s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`; };
 
 // A breakable brick can be reached if a path that avoids unbreakable bricks leads to it from the open space
@@ -37,26 +31,13 @@ function unreachable(cells) {
 for (let li = 0; li < levels.length; li++) {
   const id = levels[li].id, path = `${root}/levels/${E.fileName(id)}`;
   const level = E.fromFile(readFileSync(path, 'utf8')), st = E.stats(level.cells);
-  const runs = [];
-  for (let run = 0; run < RUNS; run++) {
-    const g = new Game({ getContext: () => ctx, addEventListener() {}, width: 0, height: 0 }, { onEnd() {} });
-    g.resize(59, 34); g.start(li); g.launch();
-    let t = 0, last = 0, rem = g.remaining, worst = 0, offset = 0, prevVy = 0;
-    while (g.remaining > 0 && t < LIMIT) {
-      if (g.state === 'missed') g.continueBall();
-      if (g.state === 'ready') g.launch();
-      const b = g.ball;
-      if (prevVy < 0 && b.vy > 0) offset = (Math.random() - 0.5) * PW * 0.8;
-      prevVy = b.vy;
-      g.paddle.x = Math.min(Math.max(b.x - offset, PW / 2), W - PW / 2);
-      g.step(STEP); t += STEP;
-      if (g.remaining < rem) { rem = g.remaining; worst = Math.max(worst, t - last); last = t; }
-    }
-    runs.push({ done: g.remaining === 0, t, worst: g.remaining ? Math.max(worst, t - last) : worst });
-  }
+  // the bot of tools/bot.mjs, with the level's own power-ups; the seeds are fixed, so the same level gives the same result
+  const runs = Array.from({ length: RUNS }, (_, k) => { const seed = (id * 7919 + k * 104729) >>> 0; return { seed, ...run(li, seed, { limit: LIMIT, screen: SCREEN }) }; });
   const done = runs.filter((r) => r.done), share = done.length / RUNS;
   const fastest = done.length ? Math.min(...done.map((r) => r.t)) : 0, slowest = done.length ? Math.max(...done.map((r) => r.t)) : 0;
-  const avg = done.reduce((a, r) => a + r.t, 0) / (done.length || 1), gap = Math.max(...runs.map((r) => r.worst));
+  const avg = done.reduce((a, r) => a + r.t, 0) / (done.length || 1), gap = Math.max(...runs.map((r) => r.gap));
+  const misses = runs.reduce((a, r) => a + r.misses, 0), mostBalls = Math.max(...runs.map((r) => r.maxBalls));
+  const problems = runs.flatMap((r) => r.issues.map((i) => `${i.what} (seed ${r.seed} at ${time(i.t)})`));
   // a ticked chance can add one more, so count it in the check against the bricks that can carry power-ups
   const blocked = unreachable(level.cells);
   const pus = Object.values(level.powerups).reduce((a, b) => a + b, 0) + Object.values(level.chances || {}).filter((n) => n > 0).length;
@@ -69,11 +50,17 @@ for (let li = 0; li < levels.length; li++) {
   if (!playable && !blocked) notes.push(`${done.length ? 'Too hard' : 'Practically impossible'}: the bot cleared it in ${done.length} of ${RUNS} tries within ${LIMIT / 60} minutes.`);
   if (pus > st.carriers) notes.push(`${pus} power-ups but only ${st.carriers} bricks that can carry them.`);
   if (playable && gap > 30) notes.push(`Long waits between bricks: up to ${Math.round(gap)} s.`);
+  if (problems.length) notes.push(`Physics problems found by the bot (${problems.length}): ${problems.slice(0, 3).join('; ')}. Replay with node tools/sim.mjs --plain --only ${id} --seed N.`);
   level.test = {
     date: DATE, playable, difficulty, notes,
-    bot: { runs: RUNS, cleared: done.length, fastestSeconds: Math.round(fastest), averageSeconds: Math.round(avg), slowestSeconds: Math.round(slowest), longestGapSeconds: Math.round(gap) },
+    bot: { runs: RUNS, cleared: done.length, fastestSeconds: Math.round(fastest), averageSeconds: Math.round(avg), slowestSeconds: Math.round(slowest), longestGapSeconds: Math.round(gap),
+      notCleared: RUNS - done.length, limitSeconds: LIMIT, misses, mostBalls, problems: problems.length },
   };
   if (playable) notes.push(`Bot: cleared ${done.length} of ${RUNS}. Fastest ${mmss(fastest)}, average ${mmss(avg)}, slowest ${mmss(slowest)}.`);
   writeFileSync(path, E.toFile(level));
-  console.log(`level ${id}: playable ${playable}, difficulty ${difficulty}, cleared ${done.length}/${RUNS}, fastest ${mmss(fastest)}, avg ${mmss(avg)}, slowest ${mmss(slowest)}, longest gap ${Math.round(gap)} s, unreachable ${blocked}`);
+  console.log([`level ${id}: cleared ${done.length}/${RUNS}, playable ${playable}, difficulty ${difficulty}`,
+    ...(done.length ? [`average ${time(avg)}, fastest ${time(fastest)}, slowest ${time(slowest)}`] : []),
+    ...(done.length < RUNS ? [`not cleared ${RUNS - done.length} (stopped at ${time(LIMIT)})`] : []),
+    `misses ${misses}`, `most balls ${mostBalls}`, `longest wait ${time(gap)}`, `unreachable bricks ${blocked}`,
+    problems.length ? `${problems.length} physics problems` : 'no problems found'].join('\n') + '\n');
 }

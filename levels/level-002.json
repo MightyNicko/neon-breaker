@@ -33,5 +33,26 @@
     "fast": 0
   },
   "chances": {},
-  "test": null
+  "test": {
+    "date": "2026-11-06",
+    "playable": true,
+    "difficulty": 3,
+    "notes": [
+      "Long waits between bricks: up to 113 s.",
+      "Bot: cleared 30 of 30. Fastest 2 min 5 s, average 3 min 20 s, slowest 5 min 30 s."
+    ],
+    "bot": {
+      "runs": 30,
+      "cleared": 30,
+      "fastestSeconds": 125,
+      "averageSeconds": 200,
+      "slowestSeconds": 330,
+      "longestGapSeconds": 113,
+      "notCleared": 0,
+      "limitSeconds": 900,
+      "misses": 18,
+      "mostBalls": 1,
+      "problems": 0
+    }
+  }
 }

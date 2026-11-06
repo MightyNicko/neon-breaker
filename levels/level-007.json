@@ -39,19 +39,24 @@
   },
   "chances": {},
   "test": {
-    "date": "2026-11-05",
+    "date": "2026-11-06",
     "playable": false,
     "difficulty": 5,
     "notes": [
-      "Too hard: the bot cleared it in 18 of 30 tries within 15 minutes."
+      "Too hard: the bot cleared it in 19 of 30 tries within 15 minutes."
     ],
     "bot": {
       "runs": 30,
-      "cleared": 18,
-      "fastestSeconds": 27,
-      "averageSeconds": 300,
-      "slowestSeconds": 692,
-      "longestGapSeconds": 900
+      "cleared": 19,
+      "fastestSeconds": 22,
+      "averageSeconds": 198,
+      "slowestSeconds": 811,
+      "longestGapSeconds": 900,
+      "notCleared": 11,
+      "limitSeconds": 900,
+      "misses": 75,
+      "mostBalls": 1,
+      "problems": 0
     }
   }
 }

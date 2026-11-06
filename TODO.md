@@ -76,7 +76,7 @@
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| T1 | Simulering utan skärm: AI-paddel spelar alla banor många gånger + fysiktester (fastnar? omöjliga? genom rutor?) | 1 | 2 | Öppen |
+| T1 | Simulering utan skärm: AI-paddel spelar alla banor många gånger + fysiktester (fastnar? omöjliga? genom rutor?) | 1 | 2 | Klar – tools/sim.mjs: spelar alla banor och tre egna testbanor (alla rutsorter, bombkedjor, oförstörbara fickor, högsta farten) med alla power-ups, i fyra skärmstorlekar, och kontrollerar fysiken efter varje steg; ett frö spelar upp samma körning igen. Körs en gång per bana i tests/sim.test.mjs |
 | T2 | Testa på riktig iPad/iPhone: hemskärm, säkra kanter, blurfix, prestanda (kräver GitHub Pages) | 1 | 1 | iPad godkänd 2026-11-03; iPhone ej bekräftad |
 | T3 | Kartans prestanda: rita bara det som syns eller förrendera (över 4 000 px med glödfilter) | 2 | 2 | Öppen |
 | T4 | Meddelande "ny version, ladda om" när service workern uppdaterats | 3 | 2 | Öppen |

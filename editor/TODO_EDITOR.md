@@ -56,7 +56,7 @@ Beslutat: svårighet och kontroll fylls i av Claude efter att banan har testats,
 | K1 | Kontrollera att banan går att klara, t.ex. att oförstörbara rutor inte stänger in andra rutor | 1 | 2 | Öppen – görs av Claude vid test |
 | K2 | Kontrollera att det inte finns fler power-ups än rutor som kan bära dem | 1 | 1 | Öppen – görs av Claude vid test |
 | K3 | Statistik: antal rutor per sort och uppskattad svårighet | 2 | 1 | Öppen – svårigheten sätts av Claude vid test |
-| K4 | Låt boten spela banan många gånger och visa tid och om den fastnar (jfr T1 i TODO.md) | 2 | 3 | Öppen – görs av Claude vid test |
+| K4 | Låt boten spela banan många gånger och visa tid och om den fastnar (jfr T1 i TODO.md) | 2 | 3 | Klar – tools/test-levels.mjs använder boten i tools/bot.mjs (samma som tools/sim.mjs) och skriver tider, missar, flest bollar, ej klarade och fysikfel i fältet test |
 | K5 | Banans fil har fält för svårighet och kontrollresultat, som editorn visar men inte ändrar | 1 | 1 | Klar – fältet test |
 
 ## Power-ups (P)
