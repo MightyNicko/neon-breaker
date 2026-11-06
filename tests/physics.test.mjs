@@ -66,12 +66,11 @@ test('paddle side at a wall: the ball stays on the field and is then lost', () =
   const g = newGame();
   g.paddle.x = W - PW / 2;
   Object.assign(g.ball, { x: W - BALL_R, y: g.paddleY + PH / 2, vx: 50, vy: 150 });
-  const balls = g.balls;
-  for (let i = 0; i < 600 && g.balls === balls; i++) {
+  for (let i = 0; i < 600 && g.misses === 0; i++) {
     g.step(STEP);
-    if (g.balls === balls) assert.ok(g.ball.x >= BALL_R && g.ball.x <= W - BALL_R);
+    if (g.misses === 0) assert.ok(g.ball.x >= BALL_R && g.ball.x <= W - BALL_R);
   }
-  assert.equal(g.balls, balls - 1);
+  assert.equal(g.misses, 1);
 });
 
 test('paddle underside: a ball below the paddle keeps falling and is lost', () => {
@@ -115,6 +114,7 @@ test('speed: each ball starts at 75 %, reaches the level speed after 30 s and th
   run(20);
   assert.equal(g.speed, full);
   g.loseBall();
+  g.continueBall();
   assert.equal(g.speed, full * 0.75, 'a new ball starts slow again');
 });
 
@@ -410,4 +410,19 @@ test('test play status: bricks left by type and power-ups left to find', () => {
   s = g.status();
   assert.equal(s.powerups.wide.hidden, [...g.carry].filter(Boolean).length);
   assert.equal(s.powerups.wide.falling, g.pills.length);
+});
+
+test('cores: a miss stops play and asks the page; going on gives a new ball on the paddle', () => {
+  let asked = 0;
+  const g = new Game({ getContext: () => ctx, addEventListener() {}, width: 0, height: 0 }, { onMiss() { asked++; } });
+  g.resize(0, 0); g.start(0); g.launch();
+  Object.assign(g.ball, { x: 10, y: g.H + 20, vx: 0, vy: 100 });
+  g.step(STEP);
+  assert.equal(g.state, 'missed');
+  assert.equal(asked, 1);
+  assert.equal(g.misses, 1);
+  g.continueBall();
+  assert.equal(g.state, 'ready');
+  assert.equal(g.ball.x, g.paddle.x);
+  g.render(0);
 });

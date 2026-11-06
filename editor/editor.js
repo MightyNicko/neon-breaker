@@ -327,7 +327,7 @@
       row(name, `${p.hidden} of ${p.total}${p.falling ? ` · ${p.falling} falling` : ''}`, !p.hidden && !p.falling);
     }
     head('Now');
-    row('Balls', s.balls, !s.balls);
+    row('Misses', s.misses ?? '–', !s.misses);
     if (s.wideLeft) row('Wider paddle', `${s.wideLeft} s left`);
     row('Seed', s.seed);
   }

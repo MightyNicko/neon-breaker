@@ -73,7 +73,7 @@ Ingen power-up finns i spelet än; varje sort måste byggas i spelet också (se 
 | P6 | Maskingevär: klicka på skärmen för att skjuta | 2 | 3 | Öppen – beslut krävs när punkten tas: var man trycker för att skjuta, så att det inte krockar med att flytta paddeln |
 | P7 | Mindre paddel (negativ) | 2 | 1 | Öppen |
 | P8 | Snabbare boll (negativ) | 2 | 1 | Öppen |
-| P9 | Hur länge en power-up varar bestäms per power-up när den byggs; vad som händer när två krockar (t.ex. bredare och mindre paddel) | 1 | 1 | Öppen – beslut krävs för krockar: förslaget är att den senaste tar över |
+| P9 | Hur länge en power-up varar bestäms per power-up när den byggs; vad som händer när två krockar (t.ex. bredare och mindre paddel) | 1 | 1 | Beslutat: bara power-ups som påverkar samma sak krockar (bredare/mindre paddel, långsam/snabb boll), och då tar den senaste över med ny tid. Alla andra gäller samtidigt, t.ex. bredare paddel och multiboll |
 
 ## Rutsorter (R)
 

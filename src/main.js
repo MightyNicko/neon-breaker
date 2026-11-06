@@ -6,14 +6,15 @@ import { TOTAL_LEVELS } from './data/zones.js';
 import { showModal, hideModal } from './ui/modal.js';
 import { t, setLang, getLang, LANGS, DEFAULT_LANG, langName as dictName } from './core/i18n.js';
 import * as storage from './core/storage.js';
-import * as lives from './core/lives.js';
+import * as cores from './core/cores.js';
+import { coreSvg } from './ui/core-icon.js';
 import { adProvider } from './core/ads.js';
 import * as audio from './core/audio.js';
 import { VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 // Test play from the editor: index.html?test#level=<the level file>. Only that level is played, over and over,
-// without lives, progress, title or map.
+// without Cores, progress, title or map.
 let testLevel = null;
 if (new URLSearchParams(location.search).has('test') && location.hash.startsWith('#level=')) {
   try { testLevel = parseLevel(decodeURIComponent(location.hash.slice(7))); } catch (e) { testLevel = null; }
@@ -24,7 +25,7 @@ if (testLevel) setLevels([testLevel]);
 else try { await loadLevels(); } catch (e) { levelsFailed = true; }
 const state = storage.load(LEVELS.length + 1, LANGS);
 setLang(state.lang ?? DEFAULT_LANG);
-lives.refresh(state);
+cores.refresh(state);
 storage.save(state);
 audio.setEnabled(state.sound);
 
@@ -44,17 +45,17 @@ function show(name) {
   else if (name === 'settings') renderSettings();
 }
 
-// ---------- HUD (lives) ----------
-function renderLives() {
-  lives.refresh(state);
-  const box = $('hearts');
-  if (box.childElementCount !== storage.MAX_LIVES) {
-    box.replaceChildren();
-    for (let i = 0; i < storage.MAX_LIVES; i++) { const s = document.createElement('span'); s.textContent = '♥'; box.append(s); }
+// ---------- HUD (Cores) ----------
+let shownCores = -1;
+function renderCores() {
+  cores.refresh(state);
+  if (shownCores !== state.cores) { // the icons are only rebuilt when the number changes
+    const box = $('cores');
+    box.replaceChildren(...Array.from({ length: storage.MAX_CORES }, (_, i) => coreSvg(i < state.cores)));
+    shownCores = state.cores;
   }
-  [...box.children].forEach((s, i) => s.classList.toggle('full', i < state.lives));
-  const ms = lives.msToNext(state);
-  $('life-timer').textContent = ms > 0 ? t('next_life', { time: lives.formatMs(ms) }) : t('lives_full');
+  const ms = cores.msToNext(state);
+  $('core-timer').textContent = ms > 0 ? t('next_core', { time: cores.formatMs(ms) }) : t('cores_full');
 }
 
 // ---------- static text, title, settings ----------
@@ -104,7 +105,7 @@ function resetProgress() {
     buttons: [
       { label: t('cancel'), primary: true },
       { label: t('reset_yes'), onClick: () => {
-        state.unlocked = 1; state.lives = storage.MAX_LIVES; state.lifeTs = null; state.tutorialDone = false;
+        state.unlocked = 1; state.cores = storage.MAX_CORES; state.coreTs = null; state.tutorialDone = false;
         storage.save(state);
       } },
     ],
@@ -162,7 +163,7 @@ let mapScreenW = 0;
 function renderMap(scroll) {
   mapScreenW = $('map-scroll').clientWidth;
   const info = buildMap($('map'), Math.max(reachable(), devUnlock), onSelect, { playable: LEVELS.length, dev: devUnlock > 0, screenW: mapScreenW });
-  renderLives();
+  renderCores();
   if (scroll) requestAnimationFrame(() => {
     const sc = $('map-scroll'), scale = $('map').clientWidth / info.width;
     sc.scrollTop = Math.max(0, info.nodeY * scale - sc.clientHeight * 0.6);
@@ -194,25 +195,25 @@ function playTest() {
 }
 
 function tryPlay(n) {
-  lives.refresh(state);
-  if (state.lives <= 0 && !dev('infiniteLives')) { noLives(); return; }
+  cores.refresh(state);
+  if (state.cores <= 0 && !dev('infiniteCores')) { noCores(); return; }
   currentLevel = n;
   show('game');
   audio.setMusic(true);
   game.start(n - 1, { tutorial: n === 1 && !state.tutorialDone && state.unlocked === 1, ...seedOpt() });
 }
 
-// ---------- no lives ----------
-function noLives() {
+// ---------- no Cores ----------
+function noCores() {
   let timer = 0;
   showModal({
-    title: t('no_lives_title'),
-    text: t('no_lives_text'),
+    title: t('no_cores_title'),
+    text: t('no_cores_text'),
     onClose: () => clearInterval(timer),
     build: (card) => {
       const p = document.createElement('p');
       p.className = 'timer';
-      const upd = () => { p.textContent = t('next_life', { time: lives.formatMs(lives.msToNext(state)) }); renderLives(); };
+      const upd = () => { p.textContent = t('next_core', { time: cores.formatMs(cores.msToNext(state)) }); renderCores(); };
       upd(); timer = setInterval(upd, 1000);
       card.append(p);
     },
@@ -231,7 +232,7 @@ async function watchAd() {
   });
   const ok = await adProvider.rewarded((s) => { line.textContent = t('ad_text', { s }); });
   hideModal();
-  if (ok) { lives.addLife(state); storage.save(state); renderLives(); }
+  if (ok) { cores.addCore(state); storage.save(state); renderCores(); }
 }
 
 // ---------- game ----------
@@ -240,37 +241,51 @@ function resizeGame() {
   game.resize(parseFloat(cs.paddingTop) || 0, parseFloat(cs.paddingBottom) || 0);
 }
 
+// A miss is free; going on costs a Core. With none left the level ends. Test play just goes on.
+function onMiss() {
+  if (testLevel) { game.continueBall(); return; }
+  audio.setMusic(false);
+  cores.refresh(state);
+  const free = dev('infiniteCores');
+  if (state.cores <= 0 && !free) {
+    showModal({ title: t('no_cores_title'), text: t('level_ends'), buttons: [{ label: t('map'), primary: true, onClick: toMap }] });
+    return;
+  }
+  showModal({
+    title: t('missed_title'),
+    text: free ? '' : t('missed_text', { n: state.cores }),
+    buttons: [
+      { label: t('use_core'), primary: true, onClick: () => {
+        if (!free) { cores.spendCore(state); storage.save(state); }
+        game.continueBall();
+        audio.setMusic(true);
+      } },
+      { label: t('cancel'), onClick: toMap },
+    ],
+  });
+}
+
 const game = new Game($('game'), {
   sfx: audio.play,
+  onMiss,
+  cores: () => (testLevel ? '' : dev('infiniteCores') ? '∞' : state.cores),
   onTutorialDone() { state.tutorialDone = true; storage.save(state); },
   onEnd(won) {
     if (testLevel) {
-      showModal({ title: t(won ? 'complete_title' : 'failed_title'), buttons: [{ label: t('retry'), primary: true, onClick: playTest }] });
+      showModal({ title: t('complete_title'), buttons: [{ label: t('retry'), primary: true, onClick: playTest }] });
       return;
     }
-    if (won) {
-      state.unlocked = Math.max(state.unlocked, Math.min(currentLevel + 1, LEVELS.length + 1));
-      storage.save(state);
-      const hasNext = currentLevel < LEVELS.length;
-      showModal({
-        title: t('complete_title'),
-        buttons: [
-          ...(hasNext ? [{ label: t('next_level'), primary: true, onClick: () => tryPlay(currentLevel + 1) }] : []),
-          { label: t('map'), primary: !hasNext, onClick: toMap },
-        ],
-      });
-    } else {
-      if (!dev('infiniteLives')) { lives.loseLife(state); storage.save(state); }
-      const canRetry = state.lives > 0 || dev('infiniteLives');
-      showModal({
-        title: t('failed_title'),
-        text: t('failed_text'),
-        buttons: [
-          ...(canRetry ? [{ label: t('retry'), primary: true, onClick: () => tryPlay(currentLevel) }] : []),
-          { label: t('map'), primary: !canRetry, onClick: toMap },
-        ],
-      });
-    }
+    if (!won) return; // a level is only left by winning, or from the miss and pause menus
+    state.unlocked = Math.max(state.unlocked, Math.min(currentLevel + 1, LEVELS.length + 1));
+    storage.save(state);
+    const hasNext = currentLevel < LEVELS.length;
+    showModal({
+      title: t('complete_title'),
+      buttons: [
+        ...(hasNext ? [{ label: t('next_level'), primary: true, onClick: () => tryPlay(currentLevel + 1) }] : []),
+        { label: t('map'), primary: !hasNext, onClick: toMap },
+      ],
+    });
   },
 });
 
@@ -286,11 +301,11 @@ function pauseGame() {
   audio.setMusic(false);
   showModal({
     title: t('paused'),
-    text: testLevel || dev('seed') ? t('seed', { n: game.seed }) : dev('infiniteLives') ? '' : t('quit_warning'),
+    text: testLevel || dev('seed') ? t('seed', { n: game.seed }) : '',
     buttons: [
       { label: t('resume'), primary: true, onClick: () => { game.resume(); audio.setMusic(true); } },
       testLevel ? { label: t('retry'), onClick: playTest }
-        : { label: t('quit'), onClick: () => { if (!dev('infiniteLives')) { lives.loseLife(state); storage.save(state); } toMap(); } },
+        : { label: t('quit'), onClick: toMap }, // free: misses are what cost
     ],
     onClose: () => {},
   });
@@ -324,7 +339,7 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => { if (screen === 'game') e.preventDefault(); }, { passive: false });
 
-setInterval(() => { if (screen === 'map') renderLives(); }, 1000);
+setInterval(() => { if (screen === 'map') renderCores(); }, 1000);
 
 // Test play in the editor's frame: tell the editor what is left, a few times a second.
 if (testLevel && window.parent !== window) {

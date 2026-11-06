@@ -43,12 +43,13 @@ for (let li = 0; li < levels.length; li++) {
     g.resize(59, 34); g.start(li); g.launch();
     let t = 0, last = 0, rem = g.remaining, worst = 0, offset = 0, prevVy = 0;
     while (g.remaining > 0 && t < LIMIT) {
+      if (g.state === 'missed') g.continueBall();
       if (g.state === 'ready') g.launch();
       const b = g.ball;
       if (prevVy < 0 && b.vy > 0) offset = (Math.random() - 0.5) * PW * 0.8;
       prevVy = b.vy;
       g.paddle.x = Math.min(Math.max(b.x - offset, PW / 2), W - PW / 2);
-      g.balls = 3; g.step(STEP); t += STEP;
+      g.step(STEP); t += STEP;
       if (g.remaining < rem) { rem = g.remaining; worst = Math.max(worst, t - last); last = t; }
     }
     runs.push({ done: g.remaining === 0, t, worst: g.remaining ? Math.max(worst, t - last) : worst });

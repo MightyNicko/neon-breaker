@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadLevels, parseLevel, COLS, ROWS, SOLID, countBricks } from '../src/game/levels.js';
-import * as lives from '../src/core/lives.js';
-import { sanitize, defaults, MAX_LIVES } from '../src/core/storage.js';
+import * as cores from '../src/core/cores.js';
+import { sanitize, defaults, MAX_CORES } from '../src/core/storage.js';
 
 test('levels: every file in levels/ loads, in number order, with something to break', async () => {
   const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
@@ -32,33 +32,39 @@ test('levels: bad files are refused, unbreakable bricks are not counted', () => 
   bad({ grid: ['#'.repeat(21)] });
 });
 
-test('lives: regenerate one per 20 minutes and stop at max', () => {
+test('cores: regenerate one per 20 minutes and stop at max', () => {
   const t0 = 1_000_000;
   const s = { ...defaults() };
-  lives.loseLife(s, t0); lives.loseLife(s, t0);
-  assert.equal(s.lives, MAX_LIVES - 2);
-  lives.refresh(s, t0 + lives.REGEN_MS - 1); assert.equal(s.lives, MAX_LIVES - 2);
-  lives.refresh(s, t0 + lives.REGEN_MS); assert.equal(s.lives, MAX_LIVES - 1);
-  lives.refresh(s, t0 + 10 * lives.REGEN_MS); assert.equal(s.lives, MAX_LIVES); assert.equal(s.lifeTs, null);
+  cores.spendCore(s, t0); cores.spendCore(s, t0);
+  assert.equal(s.cores, MAX_CORES - 2);
+  cores.refresh(s, t0 + cores.REGEN_MS - 1); assert.equal(s.cores, MAX_CORES - 2);
+  cores.refresh(s, t0 + cores.REGEN_MS); assert.equal(s.cores, MAX_CORES - 1);
+  cores.refresh(s, t0 + 10 * cores.REGEN_MS); assert.equal(s.cores, MAX_CORES); assert.equal(s.coreTs, null);
 });
 
-test('lives: cannot go below zero, clock moving backwards does not grant lives', () => {
+test('cores: cannot go below zero, clock moving backwards does not grant Cores', () => {
   const s = { ...defaults() }; const t0 = 5_000_000;
-  for (let i = 0; i < 8; i++) lives.loseLife(s, t0);
-  assert.equal(s.lives, 0);
-  lives.refresh(s, t0 - 10 * lives.REGEN_MS); assert.equal(s.lives, 0);
-  lives.addLife(s, t0 - 10 * lives.REGEN_MS); assert.equal(s.lives, 1);
+  for (let i = 0; i < 8; i++) cores.spendCore(s, t0);
+  assert.equal(s.cores, 0);
+  cores.refresh(s, t0 - 10 * cores.REGEN_MS); assert.equal(s.cores, 0);
+  cores.addCore(s, t0 - 10 * cores.REGEN_MS); assert.equal(s.cores, 1);
 });
 
 test('storage: garbage input is sanitised', () => {
-  const d = sanitize({ lives: 99, lifeTs: 'x', unlocked: -4, lang: '<script>' }, 6, ['en', 'sv']);
-  assert.equal(d.lives, MAX_LIVES); assert.equal(d.lifeTs, null); assert.equal(d.unlocked, 1); assert.equal(d.lang, null);
-  assert.deepEqual(sanitize(null, 6, ['en']).lives, MAX_LIVES);
-  assert.equal(sanitize({ lives: 2, lifeTs: 123, unlocked: 3, lang: 'sv' }, 6, ['en', 'sv']).lang, 'sv');
+  const d = sanitize({ cores: 99, coreTs: 'x', unlocked: -4, lang: '<script>' }, 6, ['en', 'sv']);
+  assert.equal(d.cores, MAX_CORES); assert.equal(d.coreTs, null); assert.equal(d.unlocked, 1); assert.equal(d.lang, null);
+  assert.deepEqual(sanitize(null, 6, ['en']).cores, MAX_CORES);
+  assert.equal(sanitize({ cores: 2, coreTs: 123, unlocked: 3, lang: 'sv' }, 6, ['en', 'sv']).lang, 'sv');
+});
+
+test('storage: a saved game from before Cores keeps its lives as Cores', () => {
+  const d = sanitize({ lives: 2, lifeTs: 123, dev: { on: true, infiniteLives: true } }, 6, ['en']);
+  assert.equal(d.cores, 2); assert.equal(d.coreTs, 123);
+  assert.equal(d.dev.infiniteCores, true);
 });
 
 test('storage: developer mode is off by default and only takes true/false', () => {
   assert.equal(defaults().dev.on, false);
   const d = sanitize({ dev: { on: true, perf: 'yes', seed: true, unlockAll: 1, hack: true } }, 6, ['en']);
-  assert.deepEqual(d.dev, { on: true, perf: false, seed: true, unlockAll: false, infiniteLives: false });
+  assert.deepEqual(d.dev, { on: true, perf: false, seed: true, unlockAll: false, infiniteCores: false });
 });

@@ -29,10 +29,10 @@ body{position:fixed;inset:0;overflow:hidden}
 #screen-map{background:linear-gradient(#0a0614 0%,#0a0618 40%,#170a2c 100%)}
 .hud{position:absolute;z-index:2;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;
   padding:calc(env(safe-area-inset-top) + 8px) 14px 10px;background:linear-gradient(#0a0614 70%,rgba(10,6,20,0))}
-.hearts{display:flex;gap:3px;font-size:18px;line-height:1}
-.hearts span{color:rgba(255,255,255,.18)}
-.hearts span.full{color:var(--heart);text-shadow:0 0 8px var(--heart)}
-.life-timer{flex:1;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cores{display:flex;gap:3px}
+.cores svg{width:20px;height:20px;display:block}
+.cores svg.full{filter:drop-shadow(0 0 3px #5ff)}
+.core-timer{flex:1;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .chip{font:500 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.12em;color:var(--ink);background:none;border:1px solid rgba(255,255,255,.35);
   border-radius:12px;padding:6px 10px;box-shadow:0 0 8px rgba(224,64,255,.35)}
 

@@ -4,11 +4,12 @@
 // (only the areas drawn in the previous frame are cleared).
 import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB } from './levels.js';
 import { t } from '../core/i18n.js';
+import { drawCore, CORE_COLOUR } from '../ui/core-icon.js';
 
 export const W = 336;            // logical width (21 columns x 16)
 const CELL = W / COLS, BR = 14.5;
 const MIN_H = 600, MAX_H = 760;  // logical height range; 600 leaves room for 25 rows above the paddle
-const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120, BALLS = 3;
+const BALL_R = 4, PW = 64, PH = 6, STEP = 1 / 120;
 const MAX_ANGLE = 1.08;          // steepest paddle bounce, in radians from straight up
 const START_SPEED = 0.75, RAMP_TIME = 30; // each ball starts at 75 % of the level's speed and reaches it after 30 s
 const LAUNCH_MIN = 0.3, LAUNCH_SPREAD = 0.2; // launch angle in radians, to the side that was tapped
@@ -137,7 +138,7 @@ export class Game {
       }
     });
     this.hidePowerups(level.powerups, rand);
-    this.balls = BALLS;
+    this.misses = 0;
     this.paddle = { x: W / 2 };
     this.particles.forEach((p) => { p.on = false; });
     this.flashes.length = 0;
@@ -187,7 +188,7 @@ export class Game {
       powerups[key] = { total, built: !!code, hidden: code ? this.carry.filter((c) => c === code).length : 0,
         falling: code ? this.pills.filter((p) => p.kind === code).length : 0 };
     }
-    return { state: this.state, balls: this.balls, remaining: this.remaining, seed: this.seed, bricks, powerups,
+    return { state: this.state, misses: this.misses, remaining: this.remaining, seed: this.seed, bricks, powerups,
       wideLeft: Math.ceil(this.wideLeft || 0) };
   }
 
@@ -403,13 +404,20 @@ export class Game {
     }
   }
 
+  // A miss stops play; the page asks whether to use a Core to go on (hooks.onMiss), then calls continueBall().
   loseBall() {
-    this.balls--;
-    if (this.balls > 0) { this.sfx('lose'); this.resetBall(); return; }
-    this.sfx('gameover');
-    this.state = 'lost';
-    this.endTimer = 0.5;
+    this.misses++;
+    this.sfx('lose');
+    this.state = 'missed';
+    this.pills.length = 0;
+    this.wideLeft = 0;
+    this.pw = PW;
+    this.clampPaddle();
+    this.trail.length = 0;
+    this.hooks.onMiss?.();
   }
+
+  continueBall() { if (this.state === 'missed') this.resetBall(); }
 
   // ---------- particles ----------
   burst(x, y, hue) {
@@ -613,6 +621,14 @@ export class Game {
     g.restore();
   }
 
+  coreSprite() { // 12 points, with glow
+    return this.sprite('core', 24, 24, (g, k) => {
+      g.translate(6, 6); g.scale(0.5, 0.5);
+      g.shadowColor = CORE_COLOUR; g.shadowBlur = 5 * k;
+      drawCore(g);
+    });
+  }
+
   handSprite() { // one raised finger and a palm, outlined like the rest of the game
     return this.sprite('hand', 44, 62, (g, k) => {
       g.shadowColor = '#5ff'; g.shadowBlur = 8 * k;
@@ -725,7 +741,7 @@ export class Game {
     g.globalCompositeOperation = 'source-over';
 
     // ball, trail, paddle
-    if (this.state !== 'won' && this.state !== 'lost' && this.state !== 'idle') {
+    if (this.state === 'playing' || this.state === 'ready' || this.state === 'paused') {
       const bs = this.ballSprite(), off = bs.w / 2;
       const n = this.trail.length / 2;
       for (let i = 0; i < n - 1; i++) {
@@ -784,12 +800,13 @@ export class Game {
       const line = [this.perf?.text, this.showSeed ? `seed ${this.seed}` : ''].filter(Boolean).join(' · ');
       g.fillText(line, 14, hy + 16); this.mark(0, hy + 7, W, 18);
     }
-    g.fillStyle = '#fff';
-    for (let i = 0; i < BALLS; i++) {
-      g.globalAlpha = i < this.balls ? 1 : 0.2;
-      g.beginPath(); g.arc(W / 2 - 12 + i * 12, hy, 2.6, 0, 7); g.fill();
+    const cores = this.hooks.cores?.() ?? '';
+    if (cores !== '') { // the Core icon and how many the player has
+      const icon = this.coreSprite();
+      this.blit(g, icon, W / 2 - 13 - icon.w / 2, hy - icon.h / 2);
+      g.fillStyle = '#fff'; g.textAlign = 'left';
+      g.fillText(String(cores), W / 2 - 3, hy);
     }
-    g.globalAlpha = 1;
     if (this.state === 'ready' && this.tutorial) { this.mark(0, this.paddleY - 80, W, this.H - this.paddleY + 80); this.renderTutorial(g, ts); }
     else if (this.state === 'ready') {
       this.mark(0, this.paddleY - 46, W, 20);

@@ -11,7 +11,7 @@
 | B1 | Bollen går igenom paddelns sida/underkant (bara ovansidan studsar) | 1 | 2 | Klar |
 | B2 | Hörnträff mot två rutor samtidigt ger märkliga studsar (bara en axel vänds) | 2 | 2 | Öppen |
 | B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | 1 | 1 | Klar – loopbrytare: paddeln styr alltid vinkeln, bara samma träff tre gånger i rad får en knuff på 3–6° |
-| B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Åtgärdad, ej bekräftad – ritningen omgjord: tre lager, bara ändrade rutor och det som rör sig ritas om, all glöd förberedd före spel. Bollen ritas nu mellan sina två senaste fysiklägen, så rörelsen blir jämn fast fysiksteg och skärmbilder inte går i takt (troligaste orsaken, eftersom det söliga märks även med få rutor kvar). Mätare med ?perf i adressen; väntar på mätning på telefon |
+| B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Klar – märks inte längre efter omgjord ritning och jämn bollrörelse (2026-11-06); tas upp igen om det återkommer |
 | B5 | Känns som vibration i telefonen; allt som vibrerar ska bort | 1 | 1 | Struken – det var telefonen som glappade i fodralet. Spelet har ingen vibration; de djupa ljudeffekterna är ändå höjda till över 200 Hz |
 
 ## Grafik (G)
@@ -30,6 +30,7 @@
 | G10 | Ny hemskärmsikon (modern, ser bra ut på skärmen; ersätter den genererade hexagonikonen). Ska göras före allt annat. Skapas med tools/make-icons.py | 1 | 2 | Klar – ikon C (Krossen) |
 | G11 | Ta bort paddelns animation (sjunker och lyser) när bollen träffar den | 1 | 1 | Klar |
 | G12 | Knivskarpa rutor: full upplösning, 1 punkt tunn linje, kanter på hela pixlar och yttersta rutorna mot skärmkanten | 1 | 2 | Klar |
+| G13 | Mockups på ikonen för Core (ersätter hjärtat för liv, jfr S13) | 2 | 1 | Klar – hexagonkärna (förslag A) |
 
 ## Innehåll (I)
 
@@ -44,6 +45,7 @@
 |----|---------|------|-------------|--------|
 | L1 | Lägga till ljudeffekter | 2 | 2 | Klar – syntetiserat ljud, av/på i inställningarna |
 | L2 | Bakgrundsmusik i SID-stil under spel | 2 | 2 | Klar – audio/neon-breaker-sid-loop.wav, skapas med tools/make-sid-loop.mjs; följer ljudinställningen |
+| L3 | Stretchande ljud när paddeln blir bredare av power-upen | 3 | 1 | Öppen |
 
 ## Monetisering (M)
 
@@ -57,7 +59,7 @@
 |----|---------|------|-------------|--------|
 | S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Pågår – klassiskt piller (2/3 av mockupens storlek) som faller sakta, rullar och fångas av paddeln; bredare paddel är byggd, övriga sorter återstår |
 | S2 | Klara en bana och få 1–3 stjärnor (grund att bestämma; förslaget "bollar kvar" avvisat av användaren) | 2 | 2 | Öppen – beslut krävs |
-| S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | 2 | 2 | Öppen – beslut krävs |
+| S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | 2 | 2 | Ersatt av S13 och S14 |
 | S4 | Utmaningsbanor: vissa banor (t.ex. var 10:e) får större ruta på kartan; klara banan på tid för in-game valuta | 3 | 3 | Öppen (kräver valuta, jfr M1) |
 | S5 | Bollens fart ökar under spelets gång (konstant per bana idag) | 2 | 1 | Klar – når banans fart efter 30 s |
 | S6 | Poäng och kombo (flera rutor i rad) | 2 | 2 | Öppen |
@@ -65,6 +67,10 @@
 | S8 | Mål bortom att klara banan: poäng, valuta, belöningar (jfr S4, M1) | 3 | 3 | Öppen |
 | S9 | Minska bollens hastighet när en bana startar (jfr S5) | 1 | 1 | Klar – varje boll börjar på 75 % av banans fart |
 | S10 | Välj bollens riktning vid start: tryck på höger sida av skärmen skickar den åt höger, vänster sida åt vänster | 2 | 1 | Klar |
+| S11 | Ny power-up: skydd bakom paddeln, ett golv som studsar tillbaka bollar som missas; bra kombo med multiboll | 2 | 2 | Öppen – beslutat: varar en bestämd tid (t.ex. 15 s, sätts när den byggs) och studsar alla bollar under tiden; kräver även en rad i editorn |
+| S12 | Power-ups med procentchans: en bana kan ha t.ex. multiboll bockad med 10 %, då är det 10 % chans att den finns med när banan startar; utöver de fasta antalen, så att banor inte känns statiska vid omspel | 2 | 2 | Öppen – kräver även editorn (kryssruta och procent per power-up) |
+| S13 | Liv tas bort ur spelet och ersätts av Cores: max 5, en ny var 20:e minut som i dag; de 3 bollarna per bana försvinner | 1 | 2 | Klar – liv och de 3 bollarna borttagna; sparade liv blir Cores. |
+| S14 | Missad boll: meddelande "Du förlorade en Core", sedan valen "Use a Core to continue" eller "Cancel" tillbaka till kartan; man kan fortsätta på banan tills alla Cores är slut | 1 | 2 | Klar – beslutat: missen är gratis, "Använd en Core och fortsätt" kostar 1, Avbryt och Avsluta i pausmenyn är gratis; utan Cores är banan slut (reklam kanske senare); minst 1 Core krävs för att starta en bana |
 
 ## Teknik (T)
 
@@ -96,3 +102,5 @@
 | U5 | Byt benämningen "upgrades" till "Power-Ups" (i TODO, S1 och all kommande text/kod) | 3 | 1 | Öppen |
 | U6 | Bredda kartan så att hela skärmbredden utnyttjas på iPad (idag en smal kolumn med tomma sidor) | 1 | 2 | Klar |
 | U7 | Skärmskakning som inställning, avstängd från början | 1 | 1 | Struken – skakningen är borttagen helt, ingen inställning |
+| U8 | Texten som visas när paddel-power-upen fångas byts från BREDARE/WIDE till EXTRA, så att den stämmer med E:et på pillret | 3 | 1 | Öppen |
+| U9 | Infotips för nya spelare: varje ny mekanik (rutsort, power-up, Cores m.m.) förklaras första gången spelaren möter den. Vid första start frågar spelet om man har spelat tidigare; svarar man ja stängs tipsen av | 2 | 2 | Öppen – förslag: tipsen går även att slå på/av under Inställningar |
