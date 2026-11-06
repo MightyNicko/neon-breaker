@@ -48,4 +48,13 @@ export default {
   hud_level: 'LEVEL {n}',
   pu_wide: 'WIDE',
   seed: 'Seed {n}',
+  developer: 'Developer',
+  dev_on: 'Developer mode on',
+  dev_on_text: 'The tools are in Settings.',
+  dev_off: 'Developer mode off',
+  dev_perf: 'Frame times',
+  dev_seed: 'Show seed',
+  dev_unlockAll: 'Unlock all levels',
+  dev_infiniteLives: 'Infinite lives',
+  dev_leave: 'Turn developer mode off',
 };

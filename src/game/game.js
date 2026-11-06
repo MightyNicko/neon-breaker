@@ -39,7 +39,8 @@ export class Game {
     this.drawn = [];              // screen-pixel rectangles drawn on the top canvas in the last frame
     this.changed = [];            // brick cells to redraw
     this.styles = {};             // colour strings by hue, so frames make no new strings
-    this.perf = null;             // frame time statistics, shown when the page has ?perf
+    this.perf = null;             // frame time statistics (?perf, or the developer mode)
+    this.showSeed = false;        // developer mode: the start's seed in the HUD
     this.pills = [];              // falling power-ups
     this.pickups = [];            // the ring and name shown where a power-up was caught
     this.pw = PW;                 // paddle width, wider with the power-up
@@ -779,7 +780,10 @@ export class Game {
     const hy = this.safe.top + 24;
     this.mark(-this.offX, hy - 9, W + this.offX * 2, 18);
     g.fillText(t('hud_level', { n: this.level.id }), 14, hy);
-    if (this.perf) { g.fillText(`${this.perf.text} · seed ${this.seed}`, 14, hy + 16); this.mark(0, hy + 7, W, 18); }
+    if (this.perf || this.showSeed) {
+      const line = [this.perf?.text, this.showSeed ? `seed ${this.seed}` : ''].filter(Boolean).join(' · ');
+      g.fillText(line, 14, hy + 16); this.mark(0, hy + 7, W, 18);
+    }
     g.fillStyle = '#fff';
     for (let i = 0; i < BALLS; i++) {
       g.globalAlpha = i < this.balls ? 1 : 0.2;

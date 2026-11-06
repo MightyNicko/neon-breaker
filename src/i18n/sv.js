@@ -48,4 +48,13 @@ export default {
   hud_level: 'BANA {n}',
   pu_wide: 'BREDARE',
   seed: 'Frö {n}',
+  developer: 'Utvecklare',
+  dev_on: 'Utvecklarläge på',
+  dev_on_text: 'Verktygen finns under Inställningar.',
+  dev_off: 'Utvecklarläge av',
+  dev_perf: 'Bildtider',
+  dev_seed: 'Visa frö',
+  dev_unlockAll: 'Lås upp alla banor',
+  dev_infiniteLives: 'Oändliga liv',
+  dev_leave: 'Stäng av utvecklarläge',
 };

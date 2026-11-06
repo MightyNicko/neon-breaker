@@ -81,6 +81,7 @@ function resizeTitle() {
 function renderSettings() {
   $('btn-sound').textContent = t(state.sound ? 'sound_on' : 'sound_off');
   $('btn-sound').classList.toggle('sel', state.sound);
+  renderDev();
   const list = $('lang-list');
   list.replaceChildren();
   for (const code of LANGS) {
@@ -110,11 +111,57 @@ function resetProgress() {
   });
 }
 
+// ---------- developer mode ----------
+// Seven quick taps on the version number turn it on or off. Its tools are listed in the settings while it is on.
+const DEV_TAPS = 7, DEV_TAP_WINDOW = 3000;
+let devTaps = [];
+const dev = (tool) => state.dev.on && state.dev[tool];
+
+function onVersionTap() {
+  const now = Date.now();
+  devTaps = devTaps.filter((ts) => now - ts < DEV_TAP_WINDOW);
+  devTaps.push(now);
+  if (devTaps.length < DEV_TAPS) return;
+  devTaps = [];
+  state.dev.on = !state.dev.on;
+  storage.save(state);
+  applyDev();
+  showModal({ title: t(state.dev.on ? 'dev_on' : 'dev_off'), text: state.dev.on ? t('dev_on_text') : '', buttons: [{ label: t('close'), primary: true }] });
+}
+
+function applyDev() {
+  game.perf = dev('perf') || new URLSearchParams(location.search).has('perf') ? (game.perf || new PerfMeter()) : null;
+  game.showSeed = dev('seed');
+}
+
+function renderDev() {
+  $('dev-section').classList.toggle('hidden', !state.dev.on);
+  $('lbl-dev').textContent = t('developer');
+  const list = $('dev-list');
+  list.replaceChildren();
+  if (!state.dev.on) return;
+  for (const tool of storage.DEV_TOOLS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn' + (state.dev[tool] ? ' sel' : '');
+    b.textContent = `${t('dev_' + tool)} · ${t(state.dev[tool] ? 'sound_on' : 'sound_off')}`;
+    b.addEventListener('click', () => { state.dev[tool] = !state.dev[tool]; storage.save(state); applyDev(); renderDev(); });
+    list.append(b);
+  }
+  const off = document.createElement('button');
+  off.type = 'button'; off.className = 'btn'; off.textContent = t('dev_leave');
+  off.addEventListener('click', () => { state.dev.on = false; storage.save(state); applyDev(); renderDev(); });
+  list.append(off);
+}
+
+// the highest level that can be played: what the player has reached, or every level in developer mode
+const reachable = () => (dev('unlockAll') ? Math.max(state.unlocked, LEVELS.length) : state.unlocked);
+
 // ---------- map ----------
 let mapScreenW = 0;
 function renderMap(scroll) {
   mapScreenW = $('map-scroll').clientWidth;
-  const info = buildMap($('map'), Math.max(state.unlocked, devUnlock), onSelect, { playable: LEVELS.length, dev: devUnlock > 0, screenW: mapScreenW });
+  const info = buildMap($('map'), Math.max(reachable(), devUnlock), onSelect, { playable: LEVELS.length, dev: devUnlock > 0, screenW: mapScreenW });
   renderLives();
   if (scroll) requestAnimationFrame(() => {
     const sc = $('map-scroll'), scale = $('map').clientWidth / info.width;
@@ -123,7 +170,7 @@ function renderMap(scroll) {
 }
 
 function onSelect(n) {
-  if (n > state.unlocked || n > LEVELS.length) return;
+  if (n > reachable() || n > LEVELS.length) return;
   currentLevel = n;
   showModal({
     title: t('level', { n }),
@@ -148,7 +195,7 @@ function playTest() {
 
 function tryPlay(n) {
   lives.refresh(state);
-  if (state.lives <= 0) { noLives(); return; }
+  if (state.lives <= 0 && !dev('infiniteLives')) { noLives(); return; }
   currentLevel = n;
   show('game');
   audio.setMusic(true);
@@ -213,8 +260,8 @@ const game = new Game($('game'), {
         ],
       });
     } else {
-      lives.loseLife(state); storage.save(state);
-      const canRetry = state.lives > 0;
+      if (!dev('infiniteLives')) { lives.loseLife(state); storage.save(state); }
+      const canRetry = state.lives > 0 || dev('infiniteLives');
       showModal({
         title: t('failed_title'),
         text: t('failed_text'),
@@ -227,8 +274,8 @@ const game = new Game($('game'), {
   },
 });
 
-// ?perf shows frame times in the game's HUD, to find stutter on a real phone.
-if (new URLSearchParams(location.search).has('perf')) game.perf = new PerfMeter();
+// ?perf, or the developer mode, shows frame times in the game's HUD, to find stutter on a real phone.
+applyDev();
 
 function toMap() { game.stop(); audio.setMusic(false); show('map'); }
 
@@ -239,11 +286,11 @@ function pauseGame() {
   audio.setMusic(false);
   showModal({
     title: t('paused'),
-    text: testLevel ? t('seed', { n: game.seed }) : t('quit_warning'),
+    text: testLevel || dev('seed') ? t('seed', { n: game.seed }) : dev('infiniteLives') ? '' : t('quit_warning'),
     buttons: [
       { label: t('resume'), primary: true, onClick: () => { game.resume(); audio.setMusic(true); } },
       testLevel ? { label: t('retry'), onClick: playTest }
-        : { label: t('quit'), onClick: () => { lives.loseLife(state); storage.save(state); toMap(); } },
+        : { label: t('quit'), onClick: () => { if (!dev('infiniteLives')) { lives.loseLife(state); storage.save(state); } toMap(); } },
     ],
     onClose: () => {},
   });
@@ -255,6 +302,7 @@ $('btn-settings').addEventListener('click', () => show('settings'));
 $('btn-back').addEventListener('click', () => show('title'));
 $('btn-menu').addEventListener('click', () => show('title'));
 $('btn-reset').addEventListener('click', resetProgress);
+$('version').addEventListener('click', onVersionTap);
 $('btn-sound').addEventListener('click', () => {
   state.sound = !state.sound; storage.save(state);
   audio.setEnabled(state.sound);

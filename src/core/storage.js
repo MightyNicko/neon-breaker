@@ -4,8 +4,12 @@ const KEY = 'neonbreaker.v1';
 
 export const MAX_LIVES = 5;
 
+// Hidden developer mode (seven taps on the version number): on, and the tools it offers.
+export const DEV_TOOLS = ['perf', 'seed', 'unlockAll', 'infiniteLives'];
+
 export function defaults() {
-  return { v: 1, lives: MAX_LIVES, lifeTs: null, unlocked: 1, lang: null, sound: true, tutorialDone: false };
+  return { v: 1, lives: MAX_LIVES, lifeTs: null, unlocked: 1, lang: null, sound: true, tutorialDone: false,
+    dev: { on: false, perf: false, seed: false, unlockAll: false, infiniteLives: false } };
 }
 
 // Never trust stored data: coerce every field into its valid range.
@@ -21,6 +25,7 @@ export function sanitize(raw, maxLevel, langs) {
   d.lang = typeof raw.lang === 'string' && langs.includes(raw.lang) ? raw.lang : null;
   d.sound = raw.sound !== false;
   d.tutorialDone = raw.tutorialDone === true;
+  if (raw.dev && typeof raw.dev === 'object') for (const k of ['on', ...DEV_TOOLS]) d.dev[k] = raw.dev[k] === true;
   return d;
 }
 

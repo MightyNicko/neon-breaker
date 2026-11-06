@@ -56,3 +56,9 @@ test('storage: garbage input is sanitised', () => {
   assert.deepEqual(sanitize(null, 6, ['en']).lives, MAX_LIVES);
   assert.equal(sanitize({ lives: 2, lifeTs: 123, unlocked: 3, lang: 'sv' }, 6, ['en', 'sv']).lang, 'sv');
 });
+
+test('storage: developer mode is off by default and only takes true/false', () => {
+  assert.equal(defaults().dev.on, false);
+  const d = sanitize({ dev: { on: true, perf: 'yes', seed: true, unlockAll: 1, hack: true } }, 6, ['en']);
+  assert.deepEqual(d.dev, { on: true, perf: false, seed: true, unlockAll: false, infiniteLives: false });
+});
