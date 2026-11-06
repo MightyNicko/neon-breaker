@@ -19,6 +19,7 @@
     { key: 'wide', name: 'Wider paddle' },
     { key: 'slow', name: 'Slow motion' },
     { key: 'multi', name: 'Multiball ×3' },
+    { key: 'floor', name: 'Floor shield' },
     { key: 'fire', name: 'Fireball' },
     { key: 'gun', name: 'Machine gun' },
     { key: 'small', name: 'Smaller paddle', negative: true },
@@ -33,7 +34,7 @@
   const inside = (x, y) => x >= 0 && x < COLS && y >= 0 && y < ROWS;
 
   function newLevel(id) {
-    return { id, speed: SPEED.start, cells: new Array(COLS * ROWS).fill(EMPTY), powerups: emptyPowerups(), test: null };
+    return { id, speed: SPEED.start, cells: new Array(COLS * ROWS).fill(EMPTY), powerups: emptyPowerups(), chances: {}, test: null };
   }
   function emptyPowerups() {
     const p = {};
@@ -41,7 +42,7 @@
     return p;
   }
   function copyLevel(level, id) {
-    return { id, speed: level.speed, cells: level.cells.slice(), powerups: { ...level.powerups }, test: null };
+    return { id, speed: level.speed, cells: level.cells.slice(), powerups: { ...level.powerups }, chances: { ...level.chances }, test: null };
   }
 
   // rows that hold at least one brick, counted from the top; the file stores only these
@@ -65,6 +66,8 @@
       speed: level.speed,
       grid: rows,
       powerups: { ...level.powerups },
+      // percent chance per power-up that a start hides one more; only the ticked ones are written
+      chances: Object.fromEntries(Object.entries(level.chances || {}).filter(([, n]) => n > 0)),
       test: level.test ?? null, // filled in by Claude after testing: playable, difficulty, notes
     };
     return JSON.stringify(file, null, 2) + '\n';
@@ -91,6 +94,8 @@
     for (const pu of POWERUPS) {
       const n = f.powerups?.[pu.key];
       if (Number.isInteger(n) && n >= 0 && n <= 99) level.powerups[pu.key] = n;
+      const c = f.chances?.[pu.key];
+      if (Number.isInteger(c) && c > 0 && c <= 100) level.chances[pu.key] = c;
     }
     level.test = f.test && typeof f.test === 'object' ? f.test : null;
     return level;

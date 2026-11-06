@@ -53,6 +53,10 @@ button,input{font:inherit;color:inherit}
 .pu .name{flex:1}
 .pu .neg{color:var(--bad);font-size:10px;margin-left:4px}
 .pu.zero{opacity:.55}
+.pu .chance{display:flex;align-items:center;gap:3px;color:var(--dim);font-size:11px}
+.pu .chance input[type=checkbox]{margin:0}
+.pu .chance input[type=number]{width:42px;padding:2px 4px;font:inherit;color:var(--ink);background:transparent;border:1px solid rgba(255,255,255,.18);border-radius:4px}
+.pu .chance input[type=number]:disabled{opacity:.4}
 .step{display:flex;align-items:center;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .step button{width:26px;height:26px;border:0;background:var(--panel2);color:var(--dim);cursor:pointer}
 .step button:hover{color:var(--ink)}

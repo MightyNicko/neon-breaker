@@ -57,7 +57,9 @@ for (let li = 0; li < levels.length; li++) {
   const done = runs.filter((r) => r.done), share = done.length / RUNS;
   const fastest = done.length ? Math.min(...done.map((r) => r.t)) : 0, slowest = done.length ? Math.max(...done.map((r) => r.t)) : 0;
   const avg = done.reduce((a, r) => a + r.t, 0) / (done.length || 1), gap = Math.max(...runs.map((r) => r.worst));
-  const blocked = unreachable(level.cells), pus = Object.values(level.powerups).reduce((a, b) => a + b, 0);
+  // a ticked chance can add one more, so count it in the check against the bricks that can carry power-ups
+  const blocked = unreachable(level.cells);
+  const pus = Object.values(level.powerups).reduce((a, b) => a + b, 0) + Object.values(level.chances || {}).filter((n) => n > 0).length;
   const playable = blocked === 0 && share >= 0.8;
   // difficulty from how long the bot needs, one step up for a fast ball
   let difficulty = !playable ? 5 : avg < 120 ? 1 : avg < 180 ? 2 : avg < 240 ? 3 : avg < 300 ? 4 : 5;

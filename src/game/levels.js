@@ -25,7 +25,10 @@ export function parseLevel(text) {
   const speed = Number.isFinite(f.speed) ? Math.min(SPEED.max, Math.max(SPEED.min, Math.round(f.speed))) : SPEED.start;
   const powerups = {};
   for (const [k, n] of Object.entries(f.powerups || {})) if (Number.isInteger(n) && n >= 0 && n <= 99) powerups[k] = n;
-  return { id: f.id, speed, grid, powerups };
+  // chances: per power-up, the percent chance that a start hides one more (optional; older files have none)
+  const chances = {};
+  for (const [k, n] of Object.entries(f.chances || {})) if (Number.isInteger(n) && n > 0 && n <= 100) chances[k] = n;
+  return { id: f.id, speed, grid, powerups, chances };
 }
 
 // read(path) returns the file's text; in the browser it fetches, in tests it reads from disk.

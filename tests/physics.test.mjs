@@ -372,13 +372,13 @@ test('power-ups: the pill falls from the broken brick, the paddle catches it and
   let t = 0;
   while (g.pills.length && t < 20) { g.stepPowerups(STEP); t += STEP; }
   assert.ok(t > 5, `it falls slowly (${t.toFixed(1)} s)`);
-  assert.ok(g.wideLeft > 0, 'caught');
+  assert.ok(g.effects.wide > 0, 'caught');
   for (let i = 0; i < 60; i++) g.stepPowerups(STEP);
   assert.equal(g.pw, 96, 'wider after a moment');
-  g.wideLeft = 0.01;
+  g.effects.wide = 0.01;
   for (let i = 0; i < 60; i++) g.stepPowerups(STEP);
   assert.equal(g.pw, PW, 'and back when the time is up');
-  g.wideLeft = 10; g.pw = 96;
+  g.effects.wide = 10; g.pw = 96;
   g.loseBall();
   assert.equal(g.pw, PW, 'a lost ball ends it');
 });
@@ -390,8 +390,8 @@ test('smooth motion: the ball is drawn between its last two physics positions', 
   g.running = true;
   g.frame(1000 / 60 * 1.5); // a frame half-way between two steps
   const b = g.ball;
-  assert.ok(Math.min(b.px, b.x) <= g.drawX && g.drawX <= Math.max(b.px, b.x));
-  assert.ok(Math.min(b.py, b.y) <= g.drawY && g.drawY <= Math.max(b.py, b.y));
+  assert.ok(Math.min(b.px, b.x) <= b.dx && b.dx <= Math.max(b.px, b.x));
+  assert.ok(Math.min(b.py, b.y) <= b.dy && b.dy <= Math.max(b.py, b.y));
 });
 
 test('test play status: bricks left by type and power-ups left to find', () => {
@@ -401,7 +401,7 @@ test('test play status: bricks left by type and power-ups left to find', () => {
   let s = g.status();
   assert.deepEqual(s.bricks, { normal: 2, twoHit: 1, cracked: 0, bomb: 1, solid: 1 });
   assert.equal(s.remaining, 4);
-  assert.deepEqual(s.powerups.wide, { total: 2, built: true, hidden: 2, falling: 0 });
+  assert.deepEqual(s.powerups.wide, { total: 2, fixed: 2, chance: 0, extra: 0, built: true, hidden: 2, falling: 0 });
   assert.equal(s.powerups.slow.built, false, 'kinds the game does not have yet are reported, never hidden');
   hitAt(g, 4);
   assert.equal(g.status().bricks.cracked, 1);
@@ -425,4 +425,81 @@ test('cores: a miss stops play and asks the page; going on gives a new ball on t
   assert.equal(g.state, 'ready');
   assert.equal(g.ball.x, g.paddle.x);
   g.render(0);
+});
+
+const { KINDS, addEffect, rollCounts } = await import('../src/game/powerups.js');
+
+test('multiball: one ball becomes three, the new ones at other angles; a second pill splits one ball again', () => {
+  const g = newGame();
+  g.launch(1);
+  g.applyPowerup(KINDS.multi, W / 2);
+  assert.equal(g.balls.length, 3);
+  const angles = g.balls.map((b) => Math.atan2(b.vx, -b.vy));
+  assert.equal(new Set(angles.map((a) => a.toFixed(3))).size, 3, 'three different paths');
+  for (const b of g.balls) assert.ok(Math.abs(Math.hypot(b.vx, b.vy) - g.speed) < 1e-6, 'same speed');
+  g.applyPowerup(KINDS.multi, W / 2);
+  assert.equal(g.balls.length, 5);
+});
+
+test('multiball: the ball is only lost when the last one falls out', () => {
+  const g = newGame();
+  g.launch(1);
+  g.applyPowerup(KINDS.multi, W / 2);
+  g.balls[0].y = g.H + 20; g.balls[0].vy = 100;
+  g.step(STEP);
+  assert.equal(g.balls.length, 2);
+  assert.equal(g.state, 'playing');
+  for (const b of g.balls) { b.y = g.H + 20; b.vy = 100; b.x = 5; }
+  g.step(STEP);
+  assert.equal(g.state, 'missed');
+  assert.equal(g.misses, 1);
+});
+
+test('floor: every ball bounces back up while it lasts, then they fall through again', () => {
+  const g = newGame();
+  g.launch(1);
+  g.applyPowerup(KINDS.floor, W / 2);
+  g.paddle.x = PW / 2; // out of the way
+  Object.assign(g.ball, { x: W - 20, y: g.floorY - BALL_R - 1, vx: 0, vy: 200 });
+  g.step(STEP);
+  assert.ok(g.ball.vy < 0, 'bounced on the floor');
+  g.effects.floor = 0.001;
+  g.step(STEP);
+  assert.equal(g.effects.floor, undefined, 'over');
+  Object.assign(g.ball, { y: g.floorY - BALL_R - 1, vy: 200 });
+  for (let i = 0; i < 120 && g.state === 'playing'; i++) g.step(STEP);
+  assert.equal(g.state, 'missed');
+});
+
+test('clash rule: only kinds that change the same thing replace each other', () => {
+  const fx = {};
+  addEffect(fx, KINDS.wide); addEffect(fx, KINDS.floor);
+  assert.deepEqual(Object.keys(fx).sort(), ['floor', 'wide'], 'wider paddle and floor at the same time');
+  const small = { key: 'small', time: 10, group: 'paddle' };
+  KINDS.small = small;
+  addEffect(fx, small);
+  delete KINDS.small;
+  assert.deepEqual(Object.keys(fx).sort(), ['floor', 'small'], 'smaller paddle replaces the wider one');
+});
+
+test('chances: one more of a kind when its chance comes up, the same for the same seed', () => {
+  const always = rollCounts({ wide: 2 }, { multi: 100 }, () => 0.5);
+  assert.deepEqual(always.counts, { wide: 2, multi: 1 });
+  assert.deepEqual(always.extra, { multi: 1 });
+  assert.deepEqual(rollCounts({}, { multi: 10 }, () => 0.5).counts, {}, '50 is not under 10');
+  assert.deepEqual(rollCounts({}, { multi: 10 }, () => 0.05).counts, { multi: 1 });
+  assert.deepEqual(rollCounts({}, { gun: 100 }, () => 0).counts, {}, 'kinds the game does not have are skipped');
+});
+
+test('floor: a ball coming up from the floor bounces down on the paddle underside', () => {
+  const g = newGame();
+  g.launch(1);
+  g.applyPowerup(KINDS.floor, W / 2);
+  g.paddle.x = W / 2;
+  Object.assign(g.ball, { x: W / 2, y: g.paddleY + PH + BALL_R + 1, vx: 0, vy: -200 });
+  g.step(STEP);
+  assert.ok(g.ball.vy > 0, 'sent back down');
+  assert.ok(g.ball.y >= g.paddleY + PH + BALL_R - 1e-9, 'never through the paddle');
+  for (let i = 0; i < 60; i++) g.step(STEP);
+  assert.equal(g.state, 'playing', 'and the floor sends it up again');
 });

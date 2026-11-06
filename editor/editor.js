@@ -105,8 +105,8 @@
     }
   }
 
-  const snapshot = (l) => ({ cells: l.cells.slice(), speed: l.speed, powerups: { ...l.powerups }, test: l.test });
-  function restore(l, s) { l.cells = s.cells; l.speed = s.speed; l.powerups = s.powerups; l.test = s.test; }
+  const snapshot = (l) => ({ cells: l.cells.slice(), speed: l.speed, powerups: { ...l.powerups }, chances: { ...l.chances }, test: l.test });
+  function restore(l, s) { l.cells = s.cells; l.speed = s.speed; l.powerups = s.powerups; l.chances = s.chances; l.test = s.test; }
   function pushHistory(e) {
     e.history.push(snapshot(e.level));
     if (e.history.length > HISTORY) e.history.shift();
@@ -323,12 +323,14 @@
     if (!keys.length) note('This level has no power-ups.');
     for (const key of keys) {
       const p = s.powerups[key], name = (C.POWERUPS.find((x) => x.key === key) || { name: key }).name;
-      if (!p.built) { row(name, `${p.total} · not in the game yet`, true); continue; }
-      row(name, `${p.hidden} of ${p.total}${p.falling ? ` · ${p.falling} falling` : ''}`, !p.hidden && !p.falling);
+      const chance = p.chance ? ` · ${p.chance} % chance${p.extra ? ', came up' : ', did not come up'}` : '';
+      if (!p.built) { row(name, `${p.fixed}${chance} · not in the game yet`, true); continue; }
+      row(name, `${p.hidden} of ${p.total}${p.falling ? ` · ${p.falling} falling` : ''}${chance}`, !p.hidden && !p.falling);
     }
     head('Now');
     row('Misses', s.misses ?? '–', !s.misses);
-    if (s.wideLeft) row('Wider paddle', `${s.wideLeft} s left`);
+    row('Balls in play', s.balls ?? 1);
+    for (const [key, left] of Object.entries(s.effects || {})) row((C.POWERUPS.find((x) => x.key === key) || { name: key }).name, `${left} s left`);
     row('Seed', s.seed);
   }
 
@@ -683,7 +685,17 @@
       minus.addEventListener('click', () => { if (cur().level.powerups[pu.key] > 0) edit((l) => { l.powerups[pu.key]--; }); });
       plus.addEventListener('click', () => { if (cur().level.powerups[pu.key] < 99) edit((l) => { l.powerups[pu.key]++; }); });
       step.append(minus, count, plus);
-      row.append(name, step);
+      // chance: ticked, a start hides one more of this kind with the given percent chance
+      const chance = document.createElement('label'); chance.className = 'chance'; chance.title = 'Chance that a start hides one more';
+      const tick = document.createElement('input'); tick.type = 'checkbox';
+      const pct = document.createElement('input'); pct.type = 'number'; pct.min = 1; pct.max = 100; pct.value = 10;
+      const unit = document.createElement('span'); unit.textContent = '%';
+      const setChance = (n) => { if ((cur().level.chances[pu.key] || 0) !== n) edit((l) => { if (n) l.chances[pu.key] = n; else delete l.chances[pu.key]; }); };
+      const pctValue = () => Math.min(100, Math.max(1, Math.round(Number(pct.value) || 10)));
+      tick.addEventListener('change', () => setChance(tick.checked ? pctValue() : 0));
+      pct.addEventListener('change', () => { pct.value = pctValue(); if (tick.checked) setChance(pctValue()); });
+      chance.append(tick, pct, unit);
+      row.append(name, chance, step);
       box.append(row);
     }
     $('f-speed').addEventListener('change', (ev) => {
@@ -705,15 +717,21 @@
   function renderPanel() {
     const l = cur().level, st = C.stats(l.cells);
     for (const row of $('powerups').children) {
-      const n = l.powerups[row.dataset.key];
+      const n = l.powerups[row.dataset.key], c = l.chances[row.dataset.key] || 0;
       row.querySelector('b').textContent = n;
-      row.classList.toggle('zero', n === 0);
+      const [tick, pct] = row.querySelectorAll('input');
+      tick.checked = c > 0;
+      if (c > 0) pct.value = c;
+      pct.disabled = !c;
+      row.classList.toggle('zero', n === 0 && !c);
     }
     $('f-id').textContent = l.id;
     $('f-zone').textContent = C.zoneOf(l.id);
     renderSpeed(l.speed);
 
-    const pus = Object.values(l.powerups).reduce((a, b) => a + b, 0);
+    // a chance adds at most one, so the most a start can hide is the counts plus one per ticked chance
+    const chances = Object.values(l.chances).filter((n) => n > 0).length;
+    const pus = Object.values(l.powerups).reduce((a, b) => a + b, 0) + (chances ? ` (+${chances} by chance)` : '');
     const rows = [['Bricks', st.total], ['Normal', st.normal], ['2 hits', st.twoHit], ['Unbreakable', st.solid], ['Bombs', st.bomb],
       ['Rows', C.usedRows(l.cells)], ['Power-ups', pus], ['Bricks that can carry them', st.carriers]];
     $('stats').replaceChildren(...rows.flatMap(([k, v]) => {
@@ -884,8 +902,8 @@
     $('btn-redo').addEventListener('click', redo);
     $('btn-clear').addEventListener('click', () => {
       const l = cur().level;
-      if (!C.stats(l.cells).total && !Object.values(l.powerups).some(Boolean)) return;
-      edit((lv) => { lv.cells = C.newLevel(lv.id).cells; lv.powerups = C.newLevel(lv.id).powerups; });
+      if (!C.stats(l.cells).total && !Object.values(l.powerups).some(Boolean) && !Object.keys(l.chances).length) return;
+      edit((lv) => { lv.cells = C.newLevel(lv.id).cells; lv.powerups = C.newLevel(lv.id).powerups; lv.chances = {}; });
       setStatus('Level cleared – Ctrl+Z undoes it', 'ok');
     });
     document.addEventListener('keydown', onKey);

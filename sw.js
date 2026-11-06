@@ -1,10 +1,10 @@
 // Network-first with offline fallback. Bump VERSION to drop old caches on release.
-const VERSION = 'nb-18';
+const VERSION = 'nb-19';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'src/main.js', 'src/core/storage.js', 'src/core/cores.js', 'src/core/i18n.js', 'src/core/ads.js', 'src/core/audio.js',
-  'src/game/game.js', 'src/game/levels.js', 'src/map/map.js', 'src/map/roads.js', 'src/data/zones.js', 'src/ui/modal.js', 'src/ui/core-icon.js', 'src/title/title.js', 'src/version.js',
+  'src/game/game.js', 'src/game/levels.js', 'src/game/powerups.js', 'src/map/map.js', 'src/map/roads.js', 'src/data/zones.js', 'src/ui/modal.js', 'src/ui/core-icon.js', 'src/title/title.js', 'src/version.js',
   'src/i18n/en.js', 'src/i18n/sv.js',
   'levels/index.json', // the level files are cached when the game first reads them
   'audio/neon-breaker-sid-loop.wav',

@@ -31,11 +31,13 @@
     "wide": 0,
     "slow": 0,
     "multi": 0,
+    "floor": 0,
     "fire": 0,
     "gun": 0,
     "small": 0,
     "fast": 0
   },
+  "chances": {},
   "test": {
     "date": "2026-11-05",
     "playable": true,

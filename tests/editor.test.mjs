@@ -14,11 +14,12 @@ test('format: a level survives save and load, with every brick type and power-up
   l.cells = C.paint(l.cells, [[1, 1]], C.TWO_HIT);
   l.cells = C.paint(l.cells, [[2, 2]], C.SOLID);
   l.cells = C.paint(l.cells, [[4, 4]], C.BOMB);
-  l.powerups.wide = 2; l.powerups.fast = 1;
+  l.powerups.wide = 2; l.powerups.fast = 1; l.chances.multi = 10;
   const text = C.toFile(l), back = C.fromFile(text);
   assert.deepEqual(back.cells, l.cells);
   assert.equal(back.speed, 285);
   assert.deepEqual(back.powerups, l.powerups);
+  assert.deepEqual(back.chances, { multi: 10 }, 'the chance survives a save and load');
   const f = JSON.parse(text);
   assert.equal(f.format, C.FORMAT);
   assert.equal(f.zone, 1);

@@ -96,6 +96,14 @@ const SOUNDS = {
   paddle() { tone(392, 0.09, { type: 'triangle', vol: 0.4, to: 494 }); },
   wall() { tone(523, 0.04, { type: 'triangle', vol: 0.15 }); },
   powerup() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.45, delay: i * 0.05 })); },
+  stretch() { // a rubber band pulled out: a slow glide up with a wobble on top
+    tone(260, 0.38, { type: 'triangle', vol: 0.5, to: 700 });
+    tone(275, 0.38, { type: 'sawtooth', vol: 0.12, to: 740 });
+    tone(1400, 0.08, { vol: 0.15, to: 1800, delay: 0.32 });
+  },
+  multi() { [784, 988, 1175].forEach((f, i) => tone(f, 0.16, { type: 'triangle', vol: 0.45, delay: i * 0.06 })); },
+  floor() { tone(330, 0.3, { type: 'triangle', vol: 0.45, to: 660 }); tone(990, 0.2, { vol: 0.2, delay: 0.12 }); },
+  floorHit() { tone(880, 0.07, { type: 'triangle', vol: 0.3, to: 660 }); },
   launch() { tone(220, 0.16, { type: 'triangle', vol: 0.6, to: 660 }); },
   lose() { tone(440, 0.32, { type: 'triangle', vol: 0.45, to: 220 }); },
   bomb() { tone(392, 0.32, { type: 'triangle', vol: 0.6, to: 220 }); tone(880, 0.14, { vol: 0.3, to: 440, delay: 0.02 }); },

@@ -5,6 +5,7 @@
 import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB } from './levels.js';
 import { t } from '../core/i18n.js';
 import { drawCore, CORE_COLOUR } from '../ui/core-icon.js';
+import { KINDS, BY_CODE, WARN_TIME, WIDE_W, SPLIT_ANGLE, MAX_BALLS, addEffect, tickEffects, rollCounts } from './powerups.js';
 
 export const W = 336;            // logical width (21 columns x 16)
 const CELL = W / COLS, BR = 14.5;
@@ -22,10 +23,11 @@ const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick
 const MAX_PARTICLES = 160;
 const FLASH_TIME = 0.16;
 const BOMB_RADIUS = 1;            // a bomb clears the bricks around it, unbreakable ones too (provisional: 3 x 3)
-// Power-ups hide in random breakable bricks and fall out as a pill when the brick breaks. Only 'wide' is built so far.
-const POWERUPS = { wide: 1 };     // level file key -> code stored per brick
-const PILL_W = 20, PILL_H = 8, PILL_FALL = 65, PILL_HUE = 320; // the falling pill; about a quarter of the ball's speed
-const WIDE_W = 96, WIDE_TIME = 20, GROW_TIME = 0.25, WARN_TIME = 2; // wider paddle: width, seconds, grow time, blink before it ends
+// Power-ups (powerups.js) hide in random breakable bricks and fall out as a pill when the brick breaks.
+const PILL_W = 20, PILL_H = 8, PILL_FALL = 65; // the falling pill; about a quarter of the ball's speed
+const GROW_TIME = 0.25;          // the wider paddle grows or shrinks over this time
+const FLOOR_GAP = 50;            // the floor power-up lies this far below the paddle (less on short screens)
+const FENCE_POST = 5, FENCE_STEP = 10; // the floor's look: post width at each wall, beam spacing
 const PICKUP_TIME = 1.2;
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
 
@@ -44,13 +46,15 @@ export class Game {
     this.showSeed = false;        // developer mode: the start's seed in the HUD
     this.pills = [];              // falling power-ups
     this.pickups = [];            // the ring and name shown where a power-up was caught
+    this.effects = {};            // running power-ups: { key: seconds left }
+    this.floorHits = [];          // where balls bounced on the floor, for its flash
     this.pw = PW;                 // paddle width, wider with the power-up
+    this.balls = [];              // every ball in play; this.ball is the first
     this.hooks = hooks;           // { onEnd(won), onPause() }
     this.state = 'idle';          // idle | ready | playing | paused | won | lost
     this.safe = { top: 0, bottom: 0 };
     this.particles = Array.from({ length: MAX_PARTICLES }, () => ({ on: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, hue: 0 }));
     this.flashes = [];
-    this.trail = [];
     this.sprites = {};
     this.running = false;
     this.pointer = null;
@@ -81,6 +85,7 @@ export class Game {
     for (const c of [this.canvas, this.bgCanvas, this.brickCanvas]) { c.width = Math.round(vw * this.dpr); c.height = Math.round(vh * this.dpr); }
     this.drawn.length = 0;
     this.paddleY = Math.round(this.H - 84 - this.safe.bottom);
+    this.floorY = Math.min(this.paddleY + FLOOR_GAP, this.H - this.safe.bottom - 6);
     this.layoutGrid();
     this.sprites = {};
     this.buildBackground();
@@ -137,7 +142,9 @@ export class Game {
         this.hue[i] = colour(x, y);
       }
     });
-    this.hidePowerups(level.powerups, rand);
+    const rolled = rollCounts(level.powerups, level.chances, rand);
+    this.extra = rolled.extra;    // kinds that came along by chance this start
+    this.hidePowerups(rolled.counts, rand);
     this.misses = 0;
     this.paddle = { x: W / 2 };
     this.particles.forEach((p) => { p.on = false; });
@@ -165,8 +172,8 @@ export class Game {
     const spots = [];
     for (let i = 0; i < this.type.length; i++) if (this.type[i] && this.type[i] !== SOLID) spots.push(i);
     for (const [key, n] of Object.entries(counts)) {
-      if (!POWERUPS[key]) continue;
-      for (let k = 0; k < n && spots.length; k++) this.carry[spots.splice(Math.floor(rand() * spots.length), 1)[0]] = POWERUPS[key];
+      if (!KINDS[key]) continue;
+      for (let k = 0; k < n && spots.length; k++) this.carry[spots.splice(Math.floor(rand() * spots.length), 1)[0]] = KINDS[key].code;
     }
   }
 
@@ -181,28 +188,35 @@ export class Game {
       else if (t === BOMB) bricks.bomb++;
       else if (t === SOLID) bricks.solid++;
     }
-    const powerups = {};
-    for (const [key, total] of Object.entries(this.level.powerups || {})) {
-      if (!total) continue;
-      const code = POWERUPS[key];
-      powerups[key] = { total, built: !!code, hidden: code ? this.carry.filter((c) => c === code).length : 0,
+    const powerups = {}, chances = this.level.chances || {};
+    for (const key of new Set([...Object.keys(this.level.powerups || {}), ...Object.keys(chances)])) {
+      const fixed = this.level.powerups?.[key] || 0, chance = chances[key] || 0;
+      if (!fixed && !chance) continue;
+      const code = KINDS[key]?.code, extra = this.extra?.[key] || 0;
+      powerups[key] = { total: fixed + extra, fixed, chance, extra, built: !!code,
+        hidden: code ? this.carry.filter((c) => c === code).length : 0,
         falling: code ? this.pills.filter((p) => p.kind === code).length : 0 };
     }
-    return { state: this.state, misses: this.misses, remaining: this.remaining, seed: this.seed, bricks, powerups,
-      wideLeft: Math.ceil(this.wideLeft || 0) };
+    const effects = {};
+    for (const [key, left] of Object.entries(this.effects)) effects[key] = Math.ceil(left);
+    return { state: this.state, misses: this.misses, balls: this.balls.length, remaining: this.remaining, seed: this.seed,
+      bricks, powerups, effects };
   }
 
   clampPaddle() { this.paddle.x = Math.min(Math.max(this.paddle.x, this.pw / 2), W - this.pw / 2); }
 
+  get ball() { return this.balls[0]; }
+
+  newBall(x, y, vx = 0, vy = 0) {
+    // px, py: where it was before the last step; dx, dy: where it is drawn; loop: recent paddle hits (loop breaker)
+    return { x, y, vx, vy, px: x, py: y, dx: x, dy: y, trail: [], loop: [] };
+  }
+
+  endPowerups() { this.pills.length = 0; this.effects = {}; this.pw = PW; this.clampPaddle(); }
+
   resetBall() { // a new ball also ends the power-ups and drops the pills still falling
-    this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0, px: this.paddle.x, py: this.paddleY - BALL_R - 1 };
-    this.pills.length = 0;
-    this.wideLeft = 0;
-    this.pw = PW;
-    this.clampPaddle();
-    this.ball.x = this.ball.px = this.paddle.x;
-    this.trail.length = 0;
-    this.paddleHits = [];
+    this.endPowerups();
+    this.balls = [this.newBall(this.paddle.x, this.paddleY - BALL_R - 1)];
     this.playTime = 0;
     this.speed = this.level.speed * START_SPEED;
     this.state = 'ready';
@@ -259,22 +273,34 @@ export class Game {
 
   // ---------- physics ----------
   step(dt) {
-    const b = this.ball;
-    b.px = b.x; b.py = b.y; // where the ball was, so frames can draw it between two steps
     this.rampSpeed(dt);
     this.stepPowerups(dt);
+    for (let i = this.balls.length - 1; i >= 0 && this.state === 'playing'; i--) {
+      if (this.stepBall(this.balls[i], dt)) this.balls.splice(i, 1); // fell out
+    }
+    if (this.state === 'playing' && !this.balls.length) this.loseBall();
+  }
+
+  // Moves one ball; true when it has left the field.
+  stepBall(b, dt) {
+    b.px = b.x; b.py = b.y; // where the ball was, so frames can draw it between two steps
     // x axis
     b.x += b.vx * dt;
     if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); this.sfx('wall'); }
     else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); this.sfx('wall'); }
-    if (this.hitBrick()) { b.x -= b.vx * dt; b.vx = -b.vx; }
+    if (this.hitBrick(b)) { b.x -= b.vx * dt; b.vx = -b.vx; }
     // y axis
     b.y += b.vy * dt;
     const ceiling = this.safe.top + TOP + BALL_R;
-    if (b.y < ceiling) { b.y = ceiling; b.vy = Math.abs(b.vy); this.keepAngle(); this.sfx('wall'); }
-    if (this.hitBrick()) { b.y -= b.vy * dt; b.vy = -b.vy; this.keepAngle(); }
-    this.hitPaddle();
-    if (b.y - BALL_R > this.H) this.loseBall();
+    if (b.y < ceiling) { b.y = ceiling; b.vy = Math.abs(b.vy); this.keepAngle(b); this.sfx('wall'); }
+    if (this.hitBrick(b)) { b.y -= b.vy * dt; b.vy = -b.vy; this.keepAngle(b); }
+    this.hitPaddle(b);
+    if (this.effects.floor && b.vy > 0 && b.y + BALL_R >= this.floorY) { // the floor power-up sends every ball back up
+      b.y = this.floorY - BALL_R; b.vy = -Math.abs(b.vy); this.keepAngle(b);
+      this.floorHits.push({ x: b.x, life: 0.4 });
+      this.sfx('floorHit');
+    }
+    return b.y - BALL_R > this.H;
   }
 
   stepPowerups(dt) {
@@ -284,46 +310,62 @@ export class Game {
       p.phase += dt * 4.2; // rolls about 0.7 turns a second
       const caught = Math.abs(p.x - this.paddle.x) <= this.pw / 2 + PILL_W / 2
         && p.y + PILL_H / 2 >= this.paddleY && p.y - PILL_H / 2 <= this.paddleY + PH;
-      if (caught) { this.applyPowerup(p); this.pills.splice(i, 1); }
+      if (caught) { this.pills.splice(i, 1); this.applyPowerup(BY_CODE[p.kind], p.x); }
       else if (p.y - PILL_H / 2 > this.H) this.pills.splice(i, 1);
     }
-    if (this.wideLeft > 0) this.wideLeft = Math.max(0, this.wideLeft - dt);
-    const target = this.wideLeft > 0 ? WIDE_W : PW, rate = (WIDE_W - PW) / GROW_TIME * dt;
+    tickEffects(this.effects, dt);
+    const target = this.effects.wide ? WIDE_W : PW, rate = (WIDE_W - PW) / GROW_TIME * dt;
     if (this.pw !== target) {
       this.pw = this.pw < target ? Math.min(target, this.pw + rate) : Math.max(target, this.pw - rate);
       this.clampPaddle();
     }
   }
 
-  applyPowerup(p) { // a second wide pill starts the time again
-    this.wideLeft = WIDE_TIME;
-    this.pickups.push({ x: p.x, y: this.paddleY, life: PICKUP_TIME, label: t('pu_wide') });
-    this.sfx('powerup');
+  applyPowerup(kind, x) {
+    addEffect(this.effects, kind); // a second pill of the same kind starts its time again
+    if (kind.key === 'multi') this.splitBall();
+    this.pickups.push({ x, y: this.paddleY, life: PICKUP_TIME, label: t(kind.label), hue: kind.hue });
+    this.sfx(kind.sound);
+  }
+
+  // Multiball: one ball becomes three. The two new ones leave at a slightly different angle each, so the three
+  // do not fly the same path. The ball split is the highest one, which is the one furthest from being lost.
+  splitBall() {
+    if (!this.balls.length) return;
+    const b = this.balls.reduce((a, c) => (c.y < a.y ? c : a));
+    for (const turn of [-SPLIT_ANGLE, SPLIT_ANGLE]) {
+      if (this.balls.length >= MAX_BALLS) break;
+      const cos = Math.cos(turn), sin = Math.sin(turn);
+      const nb = this.newBall(b.x, b.y, b.vx * cos - b.vy * sin, b.vx * sin + b.vy * cos);
+      this.keepAngle(nb);
+      this.balls.push(nb);
+    }
   }
 
   rampSpeed(dt) {
     this.playTime += dt;
     const speed = this.level.speed * Math.min(1, START_SPEED + (1 - START_SPEED) * this.playTime / RAMP_TIME);
     const k = speed / this.speed;
-    this.ball.vx *= k; this.ball.vy *= k;
+    for (const b of this.balls) { b.vx *= k; b.vy *= k; }
     this.speed = speed;
   }
 
-  hitPaddle() {
-    const b = this.ball, px = this.paddle.x, py = this.paddleY, half = this.pw / 2;
+  hitPaddle(b = this.ball) {
+    const px = this.paddle.x, py = this.paddleY, half = this.pw / 2;
     const dx = b.x - Math.max(px - half, Math.min(b.x, px + half));
     const dy = b.y - Math.max(py, Math.min(b.y, py + PH));
     if (dx * dx + dy * dy >= BALL_R * BALL_R) return;
     if (b.y <= py) { // top: the bounce angle follows where the ball lands
       if (b.vy <= 0) return;
       const off = Math.max(-1, Math.min(1, (b.x - px) / half));
-      const ang = this.breakLoop(off * MAX_ANGLE, b.x);
+      const ang = this.breakLoop(off * MAX_ANGLE, b.x, b);
       b.y = py - BALL_R;
       b.vx = this.speed * Math.sin(ang);
       b.vy = -this.speed * Math.cos(ang);
       this.sfx('paddle');
-    } else if (dy > 0 && dx === 0) { // underside: the paddle slid over the ball, which keeps falling
+    } else if (dy > 0 && dx === 0) { // underside: a ball coming up from the floor bounces down; one the paddle slid over keeps falling
       b.y = py + PH + BALL_R;
+      if (b.vy < 0) this.sfx('wall');
       b.vy = Math.abs(b.vy);
     } else { // side: bounces off but stays below the top edge, so the ball is still lost
       const side = dx !== 0 ? Math.sign(dx) : (b.x >= px ? 1 : -1);
@@ -333,8 +375,8 @@ export class Game {
     }
   }
 
-  breakLoop(ang, x) {
-    const h = this.paddleHits;
+  breakLoop(ang, x, b = this.ball) {
+    const h = b.loop;
     const loop = h.length >= LOOP_HITS - 1
       && h.slice(1 - LOOP_HITS).every((p) => Math.abs(p.x - x) < LOOP_X && Math.abs(p.ang - ang) < LOOP_ANGLE);
     h.push({ x, ang });
@@ -345,8 +387,8 @@ export class Game {
     return Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang + nudge));
   }
 
-  keepAngle() { // avoid near-horizontal ping-pong
-    const b = this.ball, min = this.speed * 0.28;
+  keepAngle(b = this.ball) { // avoid near-horizontal ping-pong
+    const min = this.speed * 0.28;
     if (Math.abs(b.vy) < min) {
       b.vy = (b.vy < 0 ? -1 : 1) * min;
       const vx = Math.sqrt(Math.max(0, this.speed * this.speed - b.vy * b.vy));
@@ -354,8 +396,7 @@ export class Game {
     }
   }
 
-  hitBrick() {
-    const b = this.ball;
+  hitBrick(b = this.ball) {
     // one extra column and row on each side, since the pixel-aligned bricks sit slightly off the logical grid
     const c0 = Math.max(0, Math.floor((b.x - BALL_R) / CELL) - 1), c1 = Math.min(COLS - 1, Math.floor((b.x + BALL_R) / CELL) + 1);
     const r0 = Math.max(0, Math.floor((b.y - BALL_R - this.gy) / CELL) - 1), r1 = Math.min(this.rows - 1, Math.floor((b.y + BALL_R - this.gy) / CELL) + 1);
@@ -370,7 +411,7 @@ export class Game {
         const dx = b.x - nx, dy = b.y - ny;
         if (dx * dx + dy * dy >= BALL_R * BALL_R) continue;
         if (t === SOLID) { this.sfx('wall'); return true; } // unbreakable: the ball just bounces
-        this.paddleHits.length = 0; // the path has changed, so it is no loop
+        b.loop.length = 0; // the path has changed, so it is no loop
         if (--this.hits[i] > 0) { // a two-hit brick or a bomb that is not done yet
           this.changed.push(i);
           this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME * 0.6 });
@@ -409,11 +450,7 @@ export class Game {
     this.misses++;
     this.sfx('lose');
     this.state = 'missed';
-    this.pills.length = 0;
-    this.wideLeft = 0;
-    this.pw = PW;
-    this.clampPaddle();
-    this.trail.length = 0;
+    this.endPowerups();
     this.hooks.onMiss?.();
   }
 
@@ -443,6 +480,9 @@ export class Game {
     for (let i = this.flashes.length - 1; i >= 0; i--) {
       if ((this.flashes[i].life -= dt) <= 0) this.flashes.splice(i, 1);
     }
+    for (let i = this.floorHits.length - 1; i >= 0; i--) {
+      if ((this.floorHits[i].life -= dt) <= 0) this.floorHits.splice(i, 1);
+    }
     const fade = Math.pow(0.001, dt); // about 1/1000 left after a second
     this.ballGlow *= fade;
   }
@@ -463,10 +503,12 @@ export class Game {
       this.ball.x = this.ball.px = this.paddle.x;
     }
     // Physics runs in fixed steps of 1/120 s, which do not line up with the screen's frames: a frame can come after
-    // zero, one or two steps. Drawing the ball between its last two positions keeps its motion even.
-    const b = this.ball, a = this.state === 'playing' ? Math.min(1, this.acc / STEP) : 1;
-    this.drawX = b.px + (b.x - b.px) * a;
-    this.drawY = b.py + (b.y - b.py) * a;
+    // zero, one or two steps. Drawing each ball between its last two positions keeps its motion even.
+    const a = this.state === 'playing' ? Math.min(1, this.acc / STEP) : 1;
+    for (const b of this.balls) {
+      b.dx = b.px + (b.x - b.px) * a;
+      b.dy = b.py + (b.y - b.py) * a;
+    }
     this.updateParticles(dt);
     if (this.state === 'won' || this.state === 'lost') {
       this.endTimer -= dt;
@@ -477,8 +519,10 @@ export class Game {
       }
     }
     if (this.state === 'playing' || this.state === 'ready') {
-      this.trail.push(this.drawX, this.drawY);
-      if (this.trail.length > 16) this.trail.splice(0, 2);
+      for (const b of this.balls) {
+        b.trail.push(b.dx, b.dy);
+        if (b.trail.length > 16) b.trail.splice(0, 2);
+      }
     }
     const t0 = this.perf ? performance.now() : 0;
     this.render(ts);
@@ -552,7 +596,9 @@ export class Game {
       if (!t) continue;
       for (let h = this.hits[i]; h >= Math.min(1, this.hits[i]); h--) this.brickSprite(this.hue[i], t, h);
     }
-    this.ballSprite(); this.paddleSprite(); this.pillGlow();
+    this.ballSprite(); this.paddleSprite();
+    for (const kind of Object.values(KINDS)) this.pillGlow(kind.hue);
+    this.floorBeams(); this.floorPosts();
   }
 
   ballSprite() {
@@ -584,24 +630,24 @@ export class Game {
     g.beginPath(); g.roundRect(x - w / 2, y, w, PH, 3); g.stroke();
   }
 
-  pillGlow() {
-    return this.sprite('pillglow', PILL_W + 16, PILL_H + 16, (g, k) => {
-      g.shadowColor = hsl(PILL_HUE, 100, 60); g.shadowBlur = 8 * k;
-      g.fillStyle = hsl(PILL_HUE, 90, 45);
+  pillGlow(hue) {
+    return this.sprite(`pillglow${hue}`, PILL_W + 16, PILL_H + 16, (g, k) => {
+      g.shadowColor = hsl(hue, 100, 60); g.shadowBlur = 8 * k;
+      g.fillStyle = hsl(hue, 90, 45);
       g.beginPath(); g.roundRect(8, 8, PILL_W, PILL_H, PILL_H / 2); g.fill();
     });
   }
 
-  // The classic pill: two colours, a white E and a shine. The line between the colours and the E roll round it.
-  drawPill(g, x, y, phase) {
-    const glow = this.pillGlow();
+  // The classic pill: two colours, a white letter and a shine. The line between the colours and the letter roll round it.
+  drawPill(g, x, y, phase, kind) {
+    const hue = kind.hue, glow = this.pillGlow(hue);
     this.blit(g, glow, x - glow.w / 2, y - glow.h / 2);
     g.save();
     g.translate(x, y);
     g.beginPath(); g.roundRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H, PILL_H / 2); g.clip();
-    g.fillStyle = this.style(PILL_HUE, 45); g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
+    g.fillStyle = this.style(hue, 45); g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
     const split = Math.sin(phase) * PILL_H / 2;
-    g.fillStyle = this.style(PILL_HUE + 40, 58);
+    g.fillStyle = this.style((hue + 40) % 360, 58);
     if (Math.cos(phase) > 0) g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, split + PILL_H / 2);
     else g.fillRect(-PILL_W / 2, split, PILL_W, PILL_H / 2 - split);
     g.fillStyle = this.pillShade ??= (() => {
@@ -611,11 +657,15 @@ export class Game {
       return s;
     })();
     g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
-    for (const a of [phase, phase + Math.PI]) { // the E is on two opposite sides, so one is always coming round
+    g.fillStyle = '#fff'; g.font = '800 6.6px -apple-system, system-ui, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const a of [phase, phase + Math.PI]) { // the letter is on two opposite sides, so one is always coming round
       const sy = Math.cos(a);
       if (sy <= 0.05) continue;
       g.globalAlpha = 0.4 + 0.6 * sy;
-      letterE(g, 0, Math.sin(a) * PILL_H * 0.42, 5.4, sy);
+      g.save(); g.translate(0, Math.sin(a) * PILL_H * 0.42); g.scale(1, sy);
+      g.fillText(kind.letter, 0, 0.3);
+      g.restore();
     }
     g.globalAlpha = 1;
     g.restore();
@@ -626,6 +676,41 @@ export class Game {
       g.translate(6, 6); g.scale(0.5, 0.5);
       g.shadowColor = CORE_COLOUR; g.shadowBlur = 5 * k;
       drawCore(g);
+    });
+  }
+
+  // The floor power-up as a laser fence: a bright post at each wall and short beams sliding between them.
+  // The glow is drawn once into sprites; only the beams' sliding offset changes per frame.
+  drawFloor(g, ts) {
+    const left = this.effects.floor;
+    if (!left) return;
+    const y = this.floorY;
+    this.mark(0, y - 12, W, 24);
+    if (left < WARN_TIME && Math.floor(left * 6) % 2 === 0) return; // blinks before it ends
+    const beams = this.floorBeams(), posts = this.floorPosts(), off = (ts / 1000 * 30) % FENCE_STEP;
+    g.save();
+    g.beginPath(); g.rect(FENCE_POST, y - 8, W - FENCE_POST * 2, 16); g.clip();
+    g.drawImage(beams.c, FENCE_POST - off, y - beams.h / 2, beams.w, beams.h);
+    g.restore();
+    g.drawImage(posts.c, 0, y - posts.h / 2, posts.w, posts.h);
+    for (const h of this.floorHits) { // a flash where a ball bounced
+      g.globalAlpha = h.life / 0.4; g.fillStyle = this.style(KINDS.floor.hue, 85);
+      g.fillRect(h.x - 10, y - 1.5, 20, 3);
+    }
+    g.globalAlpha = 1;
+  }
+  floorBeams() {
+    return this.sprite('floorbeams', W + FENCE_STEP, 16, (g, k) => {
+      g.shadowColor = hsl(KINDS.floor.hue, 100, 55); g.shadowBlur = 6 * k;
+      g.fillStyle = hsl(KINDS.floor.hue, 100, 70, 0.9);
+      for (let x = 0; x < W + FENCE_STEP; x += FENCE_STEP) g.fillRect(x, 7.4, FENCE_STEP * 0.6, 1.2);
+    });
+  }
+  floorPosts() {
+    return this.sprite('floorposts', W, 24, (g, k) => {
+      g.shadowColor = hsl(KINDS.floor.hue, 100, 55); g.shadowBlur = 8 * k;
+      g.fillStyle = hsl(KINDS.floor.hue, 100, 60);
+      g.fillRect(1.5, 7, 3, 10); g.fillRect(W - 4.5, 7, 3, 10);
     });
   }
 
@@ -740,46 +825,47 @@ export class Game {
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
 
-    // ball, trail, paddle
+    // balls with their trails, the floor, the paddle
     if (this.state === 'playing' || this.state === 'ready' || this.state === 'paused') {
-      const bs = this.ballSprite(), off = bs.w / 2;
-      const n = this.trail.length / 2;
-      for (let i = 0; i < n - 1; i++) {
-        g.globalAlpha = (i / n) * 0.3;
-        const sc = 0.35 + 0.4 * (i / n);
-        g.drawImage(bs.c, this.trail[i * 2] - off * sc, this.trail[i * 2 + 1] - off * sc, bs.w * sc, bs.h * sc);
+      const bs = this.ballSprite(), off = bs.w / 2, reach = off * 1.7; // the glow after a hit makes the sprite up to 1.7 times as big
+      for (const b of this.balls) {
+        const n = b.trail.length / 2;
+        for (let i = 0; i < n - 1; i++) {
+          g.globalAlpha = (i / n) * 0.3;
+          const sc = 0.35 + 0.4 * (i / n);
+          g.drawImage(bs.c, b.trail[i * 2] - off * sc, b.trail[i * 2 + 1] - off * sc, bs.w * sc, bs.h * sc);
+        }
+        g.globalAlpha = 1;
+        this.blit(g, bs, b.dx - off, b.dy - off);
+        let bx0 = b.dx, bx1 = bx0, by0 = b.dy, by1 = by0;
+        for (let i = 0; i < b.trail.length; i += 2) {
+          const tx = b.trail[i], ty = b.trail[i + 1];
+          if (tx < bx0) bx0 = tx;
+          if (tx > bx1) bx1 = tx;
+          if (ty < by0) by0 = ty;
+          if (ty > by1) by1 = ty;
+        }
+        this.mark(bx0 - reach, by0 - reach, bx1 - bx0 + reach * 2, by1 - by0 + reach * 2);
+        if (this.ballGlow > 0.02) { // brighter and bigger for a moment after a hit
+          const sc = 1 + this.ballGlow * 0.7;
+          g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.ballGlow;
+          g.drawImage(bs.c, b.dx - off * sc, b.dy - off * sc, bs.w * sc, bs.h * sc);
+          g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+        }
       }
-      g.globalAlpha = 1;
-      const ballX = this.drawX ?? this.ball.x, ballY = this.drawY ?? this.ball.y;
-      this.blit(g, bs, ballX - off, ballY - off);
-      let bx0 = ballX, bx1 = bx0, by0 = ballY, by1 = by0;
-      for (let i = 0; i < this.trail.length; i += 2) {
-        const tx = this.trail[i], ty = this.trail[i + 1];
-        if (tx < bx0) bx0 = tx;
-        if (tx > bx1) bx1 = tx;
-        if (ty < by0) by0 = ty;
-        if (ty > by1) by1 = ty;
-      }
-      const reach = off * 1.7; // the glow after a hit makes the sprite up to 1.7 times as big
-      this.mark(bx0 - reach, by0 - reach, bx1 - bx0 + reach * 2, by1 - by0 + reach * 2);
-      if (this.ballGlow > 0.02) { // brighter and bigger for a moment after a hit
-        const sc = 1 + this.ballGlow * 0.7;
-        g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.ballGlow;
-        g.drawImage(bs.c, ballX - off * sc, ballY - off * sc, bs.w * sc, bs.h * sc);
-        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-      }
+      this.drawFloor(g, ts);
       // the wider paddle blinks during its last seconds
-      const blink = this.wideLeft > 0 && this.wideLeft < WARN_TIME && Math.floor(this.wideLeft * 6) % 2 === 0;
+      const wide = this.effects.wide, blink = wide && wide < WARN_TIME && Math.floor(wide * 6) % 2 === 0;
       if (blink) g.globalAlpha = 0.4;
       this.drawPaddle(g, this.paddle.x, this.paddleY, this.pw);
       g.globalAlpha = 1;
       this.mark(this.paddle.x - this.pw / 2 - 20, this.paddleY - 20, this.pw + 40, PH + 40);
     }
-    for (const p of this.pills) { this.drawPill(g, p.x, p.y, p.phase); this.mark(p.x - PILL_W / 2 - 8, p.y - PILL_H / 2 - 8, PILL_W + 16, PILL_H + 16); } // = the glow sprite
+    for (const p of this.pills) { this.drawPill(g, p.x, p.y, p.phase, BY_CODE[p.kind]); this.mark(p.x - PILL_W / 2 - 8, p.y - PILL_H / 2 - 8, PILL_W + 16, PILL_H + 16); } // = the glow sprite
     for (const p of this.pickups) { // a ring where it was caught, and the name floating up
       const age = PICKUP_TIME - p.life;
       if (age < 0.45) {
-        g.strokeStyle = this.style(PILL_HUE, 75); g.globalAlpha = 1 - age / 0.45; g.lineWidth = 1.2;
+        g.strokeStyle = this.style(p.hue, 75); g.globalAlpha = 1 - age / 0.45; g.lineWidth = 1.2;
         g.beginPath(); g.ellipse(p.x, p.y + 2, 14 + age * 90, 3 + age * 14, 0, 0, 7); g.stroke();
       }
       g.globalAlpha = Math.max(0, p.life / PICKUP_TIME);
@@ -861,14 +947,6 @@ export class PerfMeter {
     const slow = this.gaps.filter((g) => g > 25).length;
     this.text = `${Math.round(1000 / avg(this.gaps))} fps · max ${max(this.gaps).toFixed(0)} ms · draw ${avg(this.works).toFixed(1)}/${max(this.works).toFixed(1)} ms · slow ${slow}`;
   }
-}
-
-// The letter E built from bars, so it can be squashed as the pill rolls.
-function letterE(g, cx, cy, h, sy) {
-  const w = h * 0.62, t = h * 0.2;
-  g.fillStyle = '#fff';
-  const bar = (x, y, bw, bh) => g.fillRect(cx - w / 2 + x, cy + (y - h / 2) * sy, bw, bh * sy);
-  bar(0, 0, t, h); bar(0, 0, w, t); bar(0, (h - t) / 2, w * 0.82, t); bar(0, h - t, w, t);
 }
 
 // A small seeded random generator: the same seed gives the same numbers.

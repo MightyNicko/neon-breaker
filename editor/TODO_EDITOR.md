@@ -68,7 +68,7 @@ Ingen power-up finns i spelet än; varje sort måste byggas i spelet också (se 
 | P1 | Välja vilka power-ups som ska finnas på banan och hur många av varje | 1 | 1 | Klar i editorn |
 | P2 | Bredare paddel – byggs först; kapsel med E som faller sakta, rullar och fångas av paddeln | 1 | 1 | Klar i spelet – paddeln blir 96 i stället för 64 i 20 s och blinkar de sista 2 s; ett nytt piller startar om tiden; slutar när bollen tappas |
 | P3 | Slow motion: bara bollen eller bollarna saktas ned | 2 | 2 | Öppen |
-| P4 | Multiboll: bollen blir 3; bollen förloras först när alla är borta | 2 | 2 | Öppen |
+| P4 | Multiboll: bollen blir 3; bollen förloras först när alla är borta | 2 | 2 | Klar i spelet – pillret M: den högsta bollen blir tre, de två nya ±20°; max 12 bollar; missen räknas först när sista bollen är borta |
 | P5 | Eldboll som går igenom rutor, men inte igenom oförstörbara rutor | 2 | 2 | Öppen |
 | P6 | Maskingevär: klicka på skärmen för att skjuta | 2 | 3 | Öppen – beslut krävs när punkten tas: var man trycker för att skjuta, så att det inte krockar med att flytta paddeln |
 | P7 | Mindre paddel (negativ) | 2 | 1 | Öppen |
@@ -96,7 +96,7 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 | S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Klar |
 | S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Klar – slumpad färgordning (rader, kolumner, diagonaler eller ringar) från en slumpad startfärg |
 | S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Klar – en per ruta, slumpat bland alla krossbara rutor |
-| S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Öppen |
+| S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Pågår – bredare paddel, multiboll och golv byggda |
 | S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Klar – bombens område är provisoriskt 3 × 3 |
 | S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Klar – fröet styr färger och power-ups; det syns i testspelets pausmeny och med ?perf, och ?seed=N upprepar en start |
 | S7 | Fem rader till nederst i spelytan, 25 i stället för 20, för häftigare banor och svårare nivåer; kontrollera att det finns plats att spela på mindre iPhones | 1 | 1 | Klar |

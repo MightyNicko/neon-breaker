@@ -45,7 +45,7 @@
 |----|---------|------|-------------|--------|
 | L1 | Lägga till ljudeffekter | 2 | 2 | Klar – syntetiserat ljud, av/på i inställningarna |
 | L2 | Bakgrundsmusik i SID-stil under spel | 2 | 2 | Klar – audio/neon-breaker-sid-loop.wav, skapas med tools/make-sid-loop.mjs; följer ljudinställningen |
-| L3 | Stretchande ljud när paddeln blir bredare av power-upen | 3 | 1 | Öppen |
+| L3 | Stretchande ljud när paddeln blir bredare av power-upen | 3 | 1 | Klar – glidande ton uppåt med ett gummiband-darr |
 
 ## Monetisering (M)
 
@@ -57,7 +57,7 @@
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Pågår – klassiskt piller (2/3 av mockupens storlek) som faller sakta, rullar och fångas av paddeln; bredare paddel är byggd, övriga sorter återstår |
+| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Pågår – gemensamt system i src/game/powerups.js; bredare paddel, multiboll och golv är byggda, övriga sorter återstår |
 | S2 | Klara en bana och få 1–3 stjärnor (grund att bestämma; förslaget "bollar kvar" avvisat av användaren) | 2 | 2 | Öppen – beslut krävs |
 | S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | 2 | 2 | Ersatt av S13 och S14 |
 | S4 | Utmaningsbanor: vissa banor (t.ex. var 10:e) får större ruta på kartan; klara banan på tid för in-game valuta | 3 | 3 | Öppen (kräver valuta, jfr M1) |
@@ -67,8 +67,8 @@
 | S8 | Mål bortom att klara banan: poäng, valuta, belöningar (jfr S4, M1) | 3 | 3 | Öppen |
 | S9 | Minska bollens hastighet när en bana startar (jfr S5) | 1 | 1 | Klar – varje boll börjar på 75 % av banans fart |
 | S10 | Välj bollens riktning vid start: tryck på höger sida av skärmen skickar den åt höger, vänster sida åt vänster | 2 | 1 | Klar |
-| S11 | Ny power-up: skydd bakom paddeln, ett golv som studsar tillbaka bollar som missas; bra kombo med multiboll | 2 | 2 | Öppen – beslutat: varar en bestämd tid (t.ex. 15 s, sätts när den byggs) och studsar alla bollar under tiden; kräver även en rad i editorn |
-| S12 | Power-ups med procentchans: en bana kan ha t.ex. multiboll bockad med 10 %, då är det 10 % chans att den finns med när banan startar; utöver de fasta antalen, så att banor inte känns statiska vid omspel | 2 | 2 | Öppen – kräver även editorn (kryssruta och procent per power-up) |
+| S11 | Ny power-up: skydd bakom paddeln, ett golv som studsar tillbaka bollar som missas; bra kombo med multiboll | 2 | 2 | Klar i spelet och editorn ("Floor shield", bärnstensfärgat piller F) – laserstaket (förslag D), 15 s, blinkar de sista 2 s, studsar alla bollar; en boll som kommer underifrån studsar ned på paddelns undersida |
+| S12 | Power-ups med procentchans: en bana kan ha t.ex. multiboll bockad med 10 %, då är det 10 % chans att den finns med när banan startar; utöver de fasta antalen, så att banor inte känns statiska vid omspel | 2 | 2 | Klar – kryssruta och procent per power-up i editorn; en start lägger till en till av sorten om chansen slår in; fältet chances i banfilen |
 | S13 | Liv tas bort ur spelet och ersätts av Cores: max 5, en ny var 20:e minut som i dag; de 3 bollarna per bana försvinner | 1 | 2 | Klar – liv och de 3 bollarna borttagna; sparade liv blir Cores. |
 | S14 | Missad boll: meddelande "Du förlorade en Core", sedan valen "Use a Core to continue" eller "Cancel" tillbaka till kartan; man kan fortsätta på banan tills alla Cores är slut | 1 | 2 | Klar – beslutat: missen är gratis, "Använd en Core och fortsätt" kostar 1, Avbryt och Avsluta i pausmenyn är gratis; utan Cores är banan slut (reklam kanske senare); minst 1 Core krävs för att starta en bana |
 
@@ -80,7 +80,7 @@
 | T2 | Testa på riktig iPad/iPhone: hemskärm, säkra kanter, blurfix, prestanda (kräver GitHub Pages) | 1 | 1 | iPad godkänd 2026-11-03; iPhone ej bekräftad |
 | T3 | Kartans prestanda: rita bara det som syns eller förrendera (över 4 000 px med glödfilter) | 2 | 2 | Öppen |
 | T4 | Meddelande "ny version, ladda om" när service workern uppdaterats | 3 | 2 | Öppen |
-| T5 | Dela upp main.js (skärmflöde/dialoger/liv) och game.js (fysik/rendering) | 3 | 2 | Öppen |
+| T5 | Dela upp main.js (skärmflöde/dialoger/liv) och game.js (fysik/rendering) | 3 | 2 | Delvis – power-ups utbrutna till src/game/powerups.js |
 | T6 | Liggande läge: "vrid enheten"-ruta eller bra liggande layout (iOS kan inte låsa riktning) | 2 | 2 | Öppen |
 | T7 | Klockfusk på liv/valuta: serverkontroll när valuta och butik införs | 3 | 3 | Öppen (jfr M1, S4) |
 | T8 | Fokus på iPhone i stället för iPad: allt testas och anpassas för iPhone först (jfr T2) | 1 | 2 | Öppen |
@@ -102,5 +102,5 @@
 | U5 | Byt benämningen "upgrades" till "Power-Ups" (i TODO, S1 och all kommande text/kod) | 3 | 1 | Öppen |
 | U6 | Bredda kartan så att hela skärmbredden utnyttjas på iPad (idag en smal kolumn med tomma sidor) | 1 | 2 | Klar |
 | U7 | Skärmskakning som inställning, avstängd från början | 1 | 1 | Struken – skakningen är borttagen helt, ingen inställning |
-| U8 | Texten som visas när paddel-power-upen fångas byts från BREDARE/WIDE till EXTRA, så att den stämmer med E:et på pillret | 3 | 1 | Öppen |
+| U8 | Texten som visas när paddel-power-upen fångas byts från BREDARE/WIDE till EXTRA, så att den stämmer med E:et på pillret | 3 | 1 | Klar |
 | U9 | Infotips för nya spelare: varje ny mekanik (rutsort, power-up, Cores m.m.) förklaras första gången spelaren möter den. Vid första start frågar spelet om man har spelat tidigare; svarar man ja stängs tipsen av | 2 | 2 | Öppen – förslag: tipsen går även att slå på/av under Inställningar |
