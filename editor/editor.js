@@ -256,6 +256,86 @@
     }
   }
 
+  // ---------- play test ----------
+  // The real game in an iPhone 15-sized frame, playing the level as it is in the editor (saved or not).
+  // Opened from disk, the editor cannot load the game's modules, so it uses the published game instead;
+  // served over http (the published editor, or a local server) it uses the game next to it.
+  const LIVE_GAME = 'https://mightynicko.github.io/neon-breaker/';
+  function gameUrl() { return location.protocol === 'file:' ? LIVE_GAME : new URL('../', location.href).href; }
+  function playTest() {
+    const e = cur();
+    if (!e) return;
+    if (!C.stats(e.level.cells).total) { setStatus('Draw some bricks first', 'warn'); return; }
+    const P = C.IPHONE_15, frame = $('playtest-frame'), dlg = $('playtest');
+    frame.width = P.w; frame.height = P.h;
+    // a new query each time, so the frame loads again even when only the level (the hash) has changed
+    frame.src = `${gameUrl()}?test=${Date.now()}#level=${encodeURIComponent(text(e))}`;
+    $('playtest-title').textContent = `Level ${e.level.id}`;
+    $('playtest-where').textContent = location.protocol === 'file:' ? 'published game' : 'local game';
+    state.playStatus = null;
+    renderPlayInfo();
+    if (!dlg.open) dlg.showModal();
+    fitPlaytest();
+    frame.focus();
+  }
+  function fitPlaytest() { // the phone keeps its size in points; the frame is scaled to fit the window
+    const P = C.IPHONE_15, box = $('playtest-screen'), dlg = $('playtest');
+    const h = window.innerHeight - 40 - 24 - 46;
+    const scale = Math.min(1.25, h / P.h);
+    box.style.width = `${Math.floor(P.w * scale)}px`;
+    box.style.height = `${Math.floor(P.h * scale)}px`;
+    $('playtest-frame').style.transform = `scale(${scale})`;
+    dlg.style.height = 'auto';
+  }
+  // The game in the frame reports what is left a few times a second (see main.js).
+  function onPlayMessage(ev) {
+    if (ev.source !== $('playtest-frame').contentWindow || !ev.data || typeof ev.data.neonBreakerTest !== 'object') return;
+    state.playStatus = ev.data.neonBreakerTest;
+    renderPlayInfo();
+  }
+  function renderPlayInfo() {
+    const box = $('playtest-info'), s = state.playStatus;
+    box.replaceChildren();
+    const head = (txt) => { const d = document.createElement('div'); d.className = 'h'; d.textContent = txt; box.append(d); };
+    const row = (name, value, zero) => {
+      const d = document.createElement('div'); d.className = 'row-n' + (zero ? ' zero' : '');
+      const a = document.createElement('span'); a.textContent = name;
+      const b = document.createElement('b'); b.textContent = value;
+      d.append(a, b); box.append(d);
+    };
+    const note = (txt) => { const p = document.createElement('div'); p.className = 'note'; p.textContent = txt; box.append(p); };
+    if (!s) {
+      head('Left on the board');
+      note(location.protocol === 'file:'
+        ? 'Waiting for the game… The published game only reports this once the latest version is pushed.'
+        : 'Waiting for the game…');
+      return;
+    }
+    head('Bricks left to break');
+    const b = s.bricks;
+    row('Normal', b.normal, !b.normal);
+    row('2 hits', b.cracked ? `${b.twoHit} (${b.cracked} hit once)` : b.twoHit, !b.twoHit);
+    row('Bomb', b.bomb, !b.bomb);
+    row('Total', s.remaining, !s.remaining);
+    row('Unbreakable', b.solid, !b.solid);
+    head('Power-ups left to find');
+    const keys = Object.keys(s.powerups);
+    if (!keys.length) note('This level has no power-ups.');
+    for (const key of keys) {
+      const p = s.powerups[key], name = (C.POWERUPS.find((x) => x.key === key) || { name: key }).name;
+      if (!p.built) { row(name, `${p.total} · not in the game yet`, true); continue; }
+      row(name, `${p.hidden} of ${p.total}${p.falling ? ` · ${p.falling} falling` : ''}`, !p.hidden && !p.falling);
+    }
+    head('Now');
+    row('Balls', s.balls, !s.balls);
+    if (s.wideLeft) row('Wider paddle', `${s.wideLeft} s left`);
+    row('Seed', s.seed);
+  }
+
+  function closePlaytest() {
+    $('playtest').close();
+  }
+
   // ---------- order: drag and drop, delete ----------
   // Gives the levels in `order` the numbers 1, 2, 3 ... and renames their files to match. A level's number is its
   // place in the game, so moving level 6 to place 1 moves levels 1-5 one step on. `removed` levels lose their files.
@@ -763,6 +843,7 @@
     if (mod && k === 'z' && !ev.shiftKey) { ev.preventDefault(); undo(); return; }
     if (mod && (k === 'y' || (k === 'z' && ev.shiftKey))) { ev.preventDefault(); redo(); return; }
     if (mod || ev.altKey) return;
+    if ($('playtest').open) { if (k === 'r') playTest(); return; }
     const ty = C.TYPES.find((t) => t.key === k);
     if (ty) { state.type = ty.t; if (state.tool === 'erase') state.tool = 'pen'; renderToolbar(); return; }
     if (k === '0') { state.tool = 'erase'; renderToolbar(); return; }
@@ -790,6 +871,12 @@
     $('btn-save-all').addEventListener('click', saveAll);
     $('btn-copy').addEventListener('click', () => newLevel(cur().level));
     $('btn-delete').addEventListener('click', deleteLevel);
+    $('btn-play').addEventListener('click', playTest);
+    $('playtest-restart').addEventListener('click', playTest);
+    $('playtest-close').addEventListener('click', closePlaytest);
+    $('playtest').addEventListener('close', () => { $('playtest-frame').src = 'about:blank'; }); // stops the game and its music
+    window.addEventListener('resize', () => { if ($('playtest').open) fitPlaytest(); });
+    window.addEventListener('message', onPlayMessage);
     $('btn-mirror').addEventListener('click', () => { state.mirror = !state.mirror; renderToolbar(); drawGrid(); });
     $('btn-guide-v').addEventListener('click', () => { state.guideV = !state.guideV; renderToolbar(); drawGrid(); });
     $('btn-guide-h').addEventListener('click', () => { state.guideH = !state.guideH; renderToolbar(); drawGrid(); });

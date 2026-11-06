@@ -1,5 +1,8 @@
-// Core breakout engine: fixed-step physics, cached glow sprites, cached brick layer.
-import { COLS, LEVELS, HITS, EMPTY, TWO_HIT, SOLID, BOMB } from './levels.js';
+// Core breakout engine: fixed-step physics, cached glow sprites.
+// Three stacked canvases, so a frame only touches the pixels that move: the background (drawn once per resize),
+// the bricks (only the cells that changed are redrawn) and, on top, the ball, paddle, effects and HUD
+// (only the areas drawn in the previous frame are cleared).
+import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB } from './levels.js';
 import { t } from '../core/i18n.js';
 
 export const W = 336;            // logical width (21 columns x 16)
@@ -18,6 +21,11 @@ const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick
 const MAX_PARTICLES = 160;
 const FLASH_TIME = 0.16;
 const BOMB_RADIUS = 1;            // a bomb clears the bricks around it, unbreakable ones too (provisional: 3 x 3)
+// Power-ups hide in random breakable bricks and fall out as a pill when the brick breaks. Only 'wide' is built so far.
+const POWERUPS = { wide: 1 };     // level file key -> code stored per brick
+const PILL_W = 20, PILL_H = 8, PILL_FALL = 65, PILL_HUE = 320; // the falling pill; about a quarter of the ball's speed
+const WIDE_W = 96, WIDE_TIME = 20, GROW_TIME = 0.25, WARN_TIME = 2; // wider paddle: width, seconds, grow time, blink before it ends
+const PICKUP_TIME = 1.2;
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
 
 const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
@@ -25,7 +33,16 @@ const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 export class Game {
   constructor(canvas, hooks) {
     this.canvas = canvas;
-    this.g = canvas.getContext('2d', { alpha: false });
+    this.bgCanvas = addLayer(canvas);
+    this.brickCanvas = addLayer(canvas);
+    this.g = canvas.getContext('2d');
+    this.drawn = [];              // screen-pixel rectangles drawn on the top canvas in the last frame
+    this.changed = [];            // brick cells to redraw
+    this.styles = {};             // colour strings by hue, so frames make no new strings
+    this.perf = null;             // frame time statistics, shown when the page has ?perf
+    this.pills = [];              // falling power-ups
+    this.pickups = [];            // the ring and name shown where a power-up was caught
+    this.pw = PW;                 // paddle width, wider with the power-up
     this.hooks = hooks;           // { onEnd(won), onPause() }
     this.state = 'idle';          // idle | ready | playing | paused | won | lost
     this.safe = { top: 0, bottom: 0 };
@@ -59,15 +76,15 @@ export class Game {
     this.k = this.s * this.dpr;
     this.safe.top = Math.max(0, safeTopPx / this.s - this.offY);
     this.safe.bottom = Math.max(0, safeBottomPx / this.s - this.offY);
-    this.canvas.width = Math.round(vw * this.dpr);
-    this.canvas.height = Math.round(vh * this.dpr);
+    for (const c of [this.canvas, this.bgCanvas, this.brickCanvas]) { c.width = Math.round(vw * this.dpr); c.height = Math.round(vh * this.dpr); }
+    this.drawn.length = 0;
     this.paddleY = Math.round(this.H - 84 - this.safe.bottom);
     this.layoutGrid();
     this.sprites = {};
     this.buildBackground();
-    this.layer = null;
-    this.dirty = true;
-    if (this.paddle) this.paddle.x = Math.min(Math.max(this.paddle.x, PW / 2), W - PW / 2);
+    this.warmSprites();
+    this.allBricks = true;
+    if (this.paddle) this.clampPaddle();
   }
 
   layoutGrid() { // row 1 always has the same place, as in the editor, against the ceiling
@@ -99,11 +116,15 @@ export class Game {
     this.rows = level.grid.length;
     this.layoutGrid();
     this.tutorial = opts.tutorial ? 1 : 0;
+    // Everything random about a start (colours, where power-ups hide) comes from this seed, so a start can be repeated.
+    this.seed = Number.isInteger(opts.seed) ? opts.seed >>> 0 : Math.floor(Math.random() * 2 ** 32);
+    const rand = mulberry32(this.seed);
     this.type = new Uint8Array(COLS * this.rows);  // EMPTY once a brick is gone
+    this.carry = new Uint8Array(COLS * this.rows); // power-up hidden in the brick, 0 for none
     this.hits = new Uint8Array(COLS * this.rows);  // hits left
     this.hue = new Uint16Array(COLS * this.rows);
     this.remaining = 0;
-    const colour = randomColours(this.rows);
+    const colour = randomColours(this.rows, rand);
     level.grid.forEach((row, y) => {
       for (let x = 0; x < COLS; x++) {
         const t = row[x], i = y * COLS + x;
@@ -114,12 +135,14 @@ export class Game {
         this.hue[i] = colour(x, y);
       }
     });
+    this.hidePowerups(level.powerups, rand);
     this.balls = BALLS;
     this.paddle = { x: W / 2 };
     this.particles.forEach((p) => { p.on = false; });
     this.flashes.length = 0;
     this.ballGlow = 0;
-    this.dirty = true;
+    this.warmSprites();
+    this.allBricks = true;
     this.resetBall();
     this.endTimer = 0;
     this.begin();
@@ -135,8 +158,47 @@ export class Game {
 
   stop() { this.running = false; cancelAnimationFrame(this.raf); this.state = 'idle'; }
 
-  resetBall() {
-    this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0 };
+  // Each power-up goes into a different breakable brick, picked at random; never an unbreakable one.
+  hidePowerups(counts = {}, rand = Math.random) {
+    const spots = [];
+    for (let i = 0; i < this.type.length; i++) if (this.type[i] && this.type[i] !== SOLID) spots.push(i);
+    for (const [key, n] of Object.entries(counts)) {
+      if (!POWERUPS[key]) continue;
+      for (let k = 0; k < n && spots.length; k++) this.carry[spots.splice(Math.floor(rand() * spots.length), 1)[0]] = POWERUPS[key];
+    }
+  }
+
+  // What is left on the board, for the editor's test play: bricks by type, and per power-up in the level file
+  // how many are still hidden. built: false for the kinds the game does not have yet (they are never hidden).
+  status() {
+    const bricks = { normal: 0, twoHit: 0, cracked: 0, bomb: 0, solid: 0 };
+    for (let i = 0; i < this.type.length; i++) {
+      const t = this.type[i];
+      if (t === NORMAL) bricks.normal++;
+      else if (t === TWO_HIT) { bricks.twoHit++; if (this.hits[i] < HITS[TWO_HIT]) bricks.cracked++; }
+      else if (t === BOMB) bricks.bomb++;
+      else if (t === SOLID) bricks.solid++;
+    }
+    const powerups = {};
+    for (const [key, total] of Object.entries(this.level.powerups || {})) {
+      if (!total) continue;
+      const code = POWERUPS[key];
+      powerups[key] = { total, built: !!code, hidden: code ? this.carry.filter((c) => c === code).length : 0,
+        falling: code ? this.pills.filter((p) => p.kind === code).length : 0 };
+    }
+    return { state: this.state, balls: this.balls, remaining: this.remaining, seed: this.seed, bricks, powerups,
+      wideLeft: Math.ceil(this.wideLeft || 0) };
+  }
+
+  clampPaddle() { this.paddle.x = Math.min(Math.max(this.paddle.x, this.pw / 2), W - this.pw / 2); }
+
+  resetBall() { // a new ball also ends the power-ups and drops the pills still falling
+    this.ball = { x: this.paddle.x, y: this.paddleY - BALL_R - 1, vx: 0, vy: 0, px: this.paddle.x, py: this.paddleY - BALL_R - 1 };
+    this.pills.length = 0;
+    this.wideLeft = 0;
+    this.pw = PW;
+    this.clampPaddle();
+    this.ball.x = this.ball.px = this.paddle.x;
     this.trail.length = 0;
     this.paddleHits = [];
     this.playTime = 0;
@@ -183,7 +245,8 @@ export class Game {
     ptr.moved += Math.abs(dx);
     if (this.state === 'paused') return;
     if (this.tutorial === 1 && ptr.moved > 30) this.tutorial = 2;
-    this.paddle.x = Math.min(Math.max(this.paddle.x + dx, PW / 2), W - PW / 2);
+    this.paddle.x += dx;
+    this.clampPaddle();
   }
   onUp(e, cancelled) {
     const ptr = this.pointer;
@@ -195,7 +258,9 @@ export class Game {
   // ---------- physics ----------
   step(dt) {
     const b = this.ball;
+    b.px = b.x; b.py = b.y; // where the ball was, so frames can draw it between two steps
     this.rampSpeed(dt);
+    this.stepPowerups(dt);
     // x axis
     b.x += b.vx * dt;
     if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); this.sfx('wall'); }
@@ -210,6 +275,30 @@ export class Game {
     if (b.y - BALL_R > this.H) this.loseBall();
   }
 
+  stepPowerups(dt) {
+    for (let i = this.pills.length - 1; i >= 0; i--) {
+      const p = this.pills[i];
+      p.y += PILL_FALL * dt;
+      p.phase += dt * 4.2; // rolls about 0.7 turns a second
+      const caught = Math.abs(p.x - this.paddle.x) <= this.pw / 2 + PILL_W / 2
+        && p.y + PILL_H / 2 >= this.paddleY && p.y - PILL_H / 2 <= this.paddleY + PH;
+      if (caught) { this.applyPowerup(p); this.pills.splice(i, 1); }
+      else if (p.y - PILL_H / 2 > this.H) this.pills.splice(i, 1);
+    }
+    if (this.wideLeft > 0) this.wideLeft = Math.max(0, this.wideLeft - dt);
+    const target = this.wideLeft > 0 ? WIDE_W : PW, rate = (WIDE_W - PW) / GROW_TIME * dt;
+    if (this.pw !== target) {
+      this.pw = this.pw < target ? Math.min(target, this.pw + rate) : Math.max(target, this.pw - rate);
+      this.clampPaddle();
+    }
+  }
+
+  applyPowerup(p) { // a second wide pill starts the time again
+    this.wideLeft = WIDE_TIME;
+    this.pickups.push({ x: p.x, y: this.paddleY, life: PICKUP_TIME, label: t('pu_wide') });
+    this.sfx('powerup');
+  }
+
   rampSpeed(dt) {
     this.playTime += dt;
     const speed = this.level.speed * Math.min(1, START_SPEED + (1 - START_SPEED) * this.playTime / RAMP_TIME);
@@ -219,7 +308,7 @@ export class Game {
   }
 
   hitPaddle() {
-    const b = this.ball, px = this.paddle.x, py = this.paddleY, half = PW / 2;
+    const b = this.ball, px = this.paddle.x, py = this.paddleY, half = this.pw / 2;
     const dx = b.x - Math.max(px - half, Math.min(b.x, px + half));
     const dy = b.y - Math.max(py, Math.min(b.y, py + PH));
     if (dx * dx + dy * dy >= BALL_R * BALL_R) return;
@@ -281,7 +370,7 @@ export class Game {
         if (t === SOLID) { this.sfx('wall'); return true; } // unbreakable: the ball just bounces
         this.paddleHits.length = 0; // the path has changed, so it is no loop
         if (--this.hits[i] > 0) { // a two-hit brick or a bomb that is not done yet
-          this.dirty = true;
+          this.changed.push(i);
           this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME * 0.6 });
           this.sfx('brick', r);
           return true;
@@ -299,8 +388,9 @@ export class Game {
     const t = this.type[i], c = i % COLS, r = Math.floor(i / COLS);
     const rx = this.colX[c], ry = this.rowY0 + r * CELL, bw = this.brW;
     this.type[i] = EMPTY; this.hits[i] = 0;
+    if (this.carry[i]) { this.pills.push({ x: rx + bw / 2, y: ry + bw / 2, kind: this.carry[i], phase: 0 }); this.carry[i] = 0; }
     if (t !== SOLID) this.remaining--;
-    this.dirty = true;
+    this.changed.push(i);
     this.burst(rx + bw / 2, ry + bw / 2, this.hue[i]);
     this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME });
     this.ballGlow = 1;
@@ -338,6 +428,9 @@ export class Game {
       if (p.life <= 0) { p.on = false; continue; }
       p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.97; p.vy *= 0.97;
     }
+    for (let i = this.pickups.length - 1; i >= 0; i--) {
+      if ((this.pickups[i].life -= dt) <= 0) this.pickups.splice(i, 1);
+    }
     for (let i = this.flashes.length - 1; i >= 0; i--) {
       if ((this.flashes[i].life -= dt) <= 0) this.flashes.splice(i, 1);
     }
@@ -349,6 +442,7 @@ export class Game {
   frame(ts) {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.frame);
+    if (this.perf) this.perf.gap(ts - this.last);
     let dt = (ts - this.last) / 1000;
     this.last = ts;
     if (dt > 0.1) dt = 0.1;
@@ -357,8 +451,13 @@ export class Game {
       this.acc += dt;
       while (this.acc >= STEP && this.state === 'playing') { this.step(STEP); this.acc -= STEP; }
     } else if (this.state === 'ready') {
-      this.ball.x = this.paddle.x;
+      this.ball.x = this.ball.px = this.paddle.x;
     }
+    // Physics runs in fixed steps of 1/120 s, which do not line up with the screen's frames: a frame can come after
+    // zero, one or two steps. Drawing the ball between its last two positions keeps its motion even.
+    const b = this.ball, a = this.state === 'playing' ? Math.min(1, this.acc / STEP) : 1;
+    this.drawX = b.px + (b.x - b.px) * a;
+    this.drawY = b.py + (b.y - b.py) * a;
     this.updateParticles(dt);
     if (this.state === 'won' || this.state === 'lost') {
       this.endTimer -= dt;
@@ -369,10 +468,12 @@ export class Game {
       }
     }
     if (this.state === 'playing' || this.state === 'ready') {
-      this.trail.push(this.ball.x, this.ball.y);
+      this.trail.push(this.drawX, this.drawY);
       if (this.trail.length > 16) this.trail.splice(0, 2);
     }
+    const t0 = this.perf ? performance.now() : 0;
     this.render(ts);
+    if (this.perf) this.perf.work(performance.now() - t0);
   }
 
   // ---------- sprites (glow is pre-rendered; shadowBlur is too slow to run per frame on iOS) ----------
@@ -433,6 +534,18 @@ export class Game {
     }
     return (this.sprites[key] = { c, pad });
   }
+  // Makes every sprite the level can need before play starts: the soft glow is slow to draw on iOS,
+  // so making one in the middle of play (a two-hit brick's first hit, a bomb counting down) would stall a frame.
+  warmSprites() {
+    if (!this.type || !this.k) return;
+    for (let i = 0; i < this.type.length; i++) {
+      const t = this.type[i];
+      if (!t) continue;
+      for (let h = this.hits[i]; h >= Math.min(1, this.hits[i]); h--) this.brickSprite(this.hue[i], t, h);
+    }
+    this.ballSprite(); this.paddleSprite(); this.pillGlow();
+  }
+
   ballSprite() {
     const size = BALL_R * 2 + 28;
     return this.sprite('ball', size, size, (g, k) => {
@@ -441,13 +554,62 @@ export class Game {
       g.fillStyle = '#fff'; g.beginPath(); g.arc(c, c, BALL_R, 0, 7); g.fill();
     });
   }
-  paddleSprite() {
+  paddleSprite() { // only the glow: the shape is drawn far outside and its shadow is moved into the sprite
     const w = PW + 40, h = PH + 40;
     return this.sprite('paddle', w, h, (g, k) => {
-      g.shadowColor = '#e040ff'; g.shadowBlur = 14 * k;
+      g.shadowColor = '#e040ff'; g.shadowBlur = 14 * k; g.shadowOffsetX = 1000 * k;
       g.strokeStyle = '#fff'; g.lineWidth = 1.6;
-      g.beginPath(); g.roundRect(20, 20, PW, PH, 3); g.stroke();
+      g.beginPath(); g.roundRect(20 - 1000, 20, PW, PH, 3); g.stroke();
     });
+  }
+
+  // The soft glow comes from the sprite in three slices, so the round ends keep their shape at any width;
+  // the sharp outline is drawn directly, so it has no seams.
+  drawPaddle(g, x, y, w) {
+    const s = this.paddleSprite(), k = this.k, cap = 28, mid = PW + 40 - cap * 2, ch = s.c.height;
+    const left = x - w / 2 - 20, top = y - 20;
+    g.drawImage(s.c, 0, 0, cap * k, ch, left, top, cap, s.h);
+    g.drawImage(s.c, cap * k, 0, mid * k, ch, left + cap, top, w + 40 - cap * 2, s.h);
+    g.drawImage(s.c, (cap + mid) * k, 0, cap * k, ch, left + w + 40 - cap, top, cap, s.h);
+    g.strokeStyle = '#fff'; g.lineWidth = 1.6;
+    g.beginPath(); g.roundRect(x - w / 2, y, w, PH, 3); g.stroke();
+  }
+
+  pillGlow() {
+    return this.sprite('pillglow', PILL_W + 16, PILL_H + 16, (g, k) => {
+      g.shadowColor = hsl(PILL_HUE, 100, 60); g.shadowBlur = 8 * k;
+      g.fillStyle = hsl(PILL_HUE, 90, 45);
+      g.beginPath(); g.roundRect(8, 8, PILL_W, PILL_H, PILL_H / 2); g.fill();
+    });
+  }
+
+  // The classic pill: two colours, a white E and a shine. The line between the colours and the E roll round it.
+  drawPill(g, x, y, phase) {
+    const glow = this.pillGlow();
+    this.blit(g, glow, x - glow.w / 2, y - glow.h / 2);
+    g.save();
+    g.translate(x, y);
+    g.beginPath(); g.roundRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H, PILL_H / 2); g.clip();
+    g.fillStyle = this.style(PILL_HUE, 45); g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
+    const split = Math.sin(phase) * PILL_H / 2;
+    g.fillStyle = this.style(PILL_HUE + 40, 58);
+    if (Math.cos(phase) > 0) g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, split + PILL_H / 2);
+    else g.fillRect(-PILL_W / 2, split, PILL_W, PILL_H / 2 - split);
+    g.fillStyle = this.pillShade ??= (() => {
+      const s = g.createLinearGradient(0, -PILL_H / 2, 0, PILL_H / 2);
+      s.addColorStop(0, 'rgba(255,255,255,.45)'); s.addColorStop(0.35, 'rgba(255,255,255,0)');
+      s.addColorStop(0.75, 'rgba(0,0,0,0)'); s.addColorStop(1, 'rgba(0,0,0,.45)');
+      return s;
+    })();
+    g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
+    for (const a of [phase, phase + Math.PI]) { // the E is on two opposite sides, so one is always coming round
+      const sy = Math.cos(a);
+      if (sy <= 0.05) continue;
+      g.globalAlpha = 0.4 + 0.6 * sy;
+      letterE(g, 0, Math.sin(a) * PILL_H * 0.42, 5.4, sy);
+    }
+    g.globalAlpha = 1;
+    g.restore();
   }
 
   handSprite() { // one raised finger and a palm, outlined like the rest of the game
@@ -460,11 +622,9 @@ export class Game {
     });
   }
 
-  buildBackground() {
-    const w = this.canvas.width, h = this.canvas.height;
-    const c = this.bg = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const g = c.getContext('2d');
+  buildBackground() { // also the touch zone, which never moves
+    const w = this.bgCanvas.width, h = this.bgCanvas.height;
+    const g = this.bgCanvas.getContext('2d', { alpha: false });
     g.fillStyle = BG; g.fillRect(0, 0, w, h);
     g.setTransform(this.k, 0, 0, this.k, this.offX * this.k, this.offY * this.k);
     // soft violet glow in the middle; the top edge stays the solid theme colour
@@ -482,53 +642,85 @@ export class Game {
     flare(W - 30, this.gy + 60, 100, -0.5, 'rgba(255,200,0,.8)');
     flare(40, this.paddleY - 120, 80, -0.5, 'rgba(0,255,220,.7)');
     flare(W - 40, this.paddleY - 150, 60, 0.6, 'rgba(120,120,255,.7)');
+    g.setLineDash([2, 5]); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
+    g.beginPath(); g.roundRect(8, this.paddleY - 44, W - 16, Math.max(60, this.H - this.paddleY + 36 - this.safe.bottom), 18); g.stroke();
   }
 
-  rebuildLayer() { // the whole screen width in screen pixels, so it is copied 1:1 without blurring
-    const height = Math.min(this.canvas.height, this.rowTopPx + this.rows * this.cellPx + Math.ceil(GLOW_PAD * this.k));
-    if (!this.layer || this.layer.width !== this.canvas.width || this.layer.height !== height) {
-      this.layer = document.createElement('canvas');
-      this.layer.width = this.canvas.width; this.layer.height = height;
-    }
-    const g = this.layer.getContext('2d');
-    g.clearRect(0, 0, this.layer.width, this.layer.height);
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const i = r * COLS + c;
-        if (!this.type[i]) continue;
-        const sp = this.brickSprite(this.hue[i], this.type[i], this.hits[i]);
-        g.drawImage(sp.c, this.colPx[c] - sp.pad, this.rowTopPx + r * this.cellPx - sp.pad);
-      }
-    }
-    this.dirty = false;
+  drawBrick(g, i) {
+    const c = i % COLS, r = (i - c) / COLS;
+    const sp = this.brickSprite(this.hue[i], this.type[i], this.hits[i]);
+    g.drawImage(sp.c, this.colPx[c] - sp.pad, this.rowTopPx + r * this.cellPx - sp.pad);
   }
+
+  // All bricks after a start or resize; afterwards only the changed cells, with the glow of the bricks next to them.
+  // Drawn in the same order as the full redraw, so a patched cell looks exactly as if everything had been redrawn.
+  updateBricks() {
+    const g = this.brickCanvas.getContext('2d');
+    if (this.allBricks) {
+      g.clearRect(0, 0, this.brickCanvas.width, this.brickCanvas.height);
+      for (let i = 0; i < this.type.length; i++) if (this.type[i]) this.drawBrick(g, i);
+      this.allBricks = false; this.changed.length = 0;
+      return;
+    }
+    const pad = Math.ceil(GLOW_PAD * this.k), reach = 2; // a glow reaches less than two cells
+    for (const i of this.changed) {
+      const c = i % COLS, r = (i - c) / COLS;
+      const x = this.colPx[c] - pad, y = this.rowTopPx + r * this.cellPx - pad, size = this.brPx + pad * 2;
+      g.save();
+      g.beginPath(); g.rect(x, y, size, size); g.clip();
+      g.clearRect(x, y, size, size);
+      for (let rr = Math.max(0, r - reach); rr <= Math.min(this.rows - 1, r + reach); rr++) {
+        for (let cc = Math.max(0, c - reach); cc <= Math.min(COLS - 1, c + reach); cc++) {
+          if (this.type[rr * COLS + cc]) this.drawBrick(g, rr * COLS + cc);
+        }
+      }
+      g.restore();
+    }
+    this.changed.length = 0;
+  }
+
+  // Records a logical rectangle drawn on the top canvas, to clear at the start of the next frame.
+  mark(x, y, w, h) {
+    const k = this.k, px = this.canvas.width, py = this.canvas.height;
+    const x0 = Math.max(0, Math.floor((x + this.offX) * k) - 2), y0 = Math.max(0, Math.floor((y + this.offY) * k) - 2);
+    const x1 = Math.min(px, Math.ceil((x + w + this.offX) * k) + 2), y1 = Math.min(py, Math.ceil((y + h + this.offY) * k) + 2);
+    if (x1 > x0 && y1 > y0) this.drawn.push(x0, y0, x1 - x0, y1 - y0);
+  }
+
+  style(hue, light) { const key = hue * 100 + light; return this.styles[key] ??= hsl(hue, 100, light); }
 
   // ---------- render ----------
   render(ts) {
     const g = this.g, k = this.k;
+    if (this.allBricks || this.changed.length) this.updateBricks();
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.drawImage(this.bg, 0, 0);
-    if (this.dirty) this.rebuildLayer();
-    g.drawImage(this.layer, 0, 0);
+    const d = this.drawn;
+    for (let i = 0; i < d.length; i += 4) g.clearRect(d[i], d[i + 1], d[i + 2], d[i + 3]);
+    d.length = 0;
     g.setTransform(k, 0, 0, k, this.offX * k, this.offY * k);
-
-    // touch zone
-    g.save(); g.setLineDash([2, 5]); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
-    g.beginPath(); g.roundRect(8, this.paddleY - 44, W - 16, Math.max(60, this.H - this.paddleY + 36 - this.safe.bottom), 18); g.stroke();
-    g.restore();
 
     // particles
     g.globalCompositeOperation = 'lighter';
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of this.particles) {
       if (!p.on) continue;
-      g.fillStyle = hsl(p.hue, 100, 65, p.life / p.max);
+      g.globalAlpha = p.life / p.max;
+      g.fillStyle = this.style(p.hue, 65);
       g.fillRect(p.x - 1.2, p.y - 1.2, 2.4, 2.4);
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
     }
+    if (x1 >= x0) this.mark(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
     for (const f of this.flashes) { // white flash that grows out of the broken brick
       const a = f.life / FLASH_TIME, grow = (1 - a) * 5;
-      g.fillStyle = hsl(f.hue, 100, 88, a * 0.9);
+      g.globalAlpha = Math.min(1, a * 0.9);
+      g.fillStyle = this.style(f.hue, 88);
       g.fillRect(f.x - grow, f.y - grow, this.brW + grow * 2, this.brW + grow * 2);
+      this.mark(f.x - grow, f.y - grow, this.brW + grow * 2, this.brW + grow * 2);
     }
+    g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
 
     // ball, trail, paddle
@@ -541,14 +733,43 @@ export class Game {
         g.drawImage(bs.c, this.trail[i * 2] - off * sc, this.trail[i * 2 + 1] - off * sc, bs.w * sc, bs.h * sc);
       }
       g.globalAlpha = 1;
-      this.blit(g, bs, this.ball.x - off, this.ball.y - off);
+      const ballX = this.drawX ?? this.ball.x, ballY = this.drawY ?? this.ball.y;
+      this.blit(g, bs, ballX - off, ballY - off);
+      let bx0 = ballX, bx1 = bx0, by0 = ballY, by1 = by0;
+      for (let i = 0; i < this.trail.length; i += 2) {
+        const tx = this.trail[i], ty = this.trail[i + 1];
+        if (tx < bx0) bx0 = tx;
+        if (tx > bx1) bx1 = tx;
+        if (ty < by0) by0 = ty;
+        if (ty > by1) by1 = ty;
+      }
+      const reach = off * 1.7; // the glow after a hit makes the sprite up to 1.7 times as big
+      this.mark(bx0 - reach, by0 - reach, bx1 - bx0 + reach * 2, by1 - by0 + reach * 2);
       if (this.ballGlow > 0.02) { // brighter and bigger for a moment after a hit
         const sc = 1 + this.ballGlow * 0.7;
         g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.ballGlow;
-        g.drawImage(bs.c, this.ball.x - off * sc, this.ball.y - off * sc, bs.w * sc, bs.h * sc);
+        g.drawImage(bs.c, ballX - off * sc, ballY - off * sc, bs.w * sc, bs.h * sc);
         g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
       }
-      this.blit(g, this.paddleSprite(), this.paddle.x - PW / 2 - 20, this.paddleY - 20);
+      // the wider paddle blinks during its last seconds
+      const blink = this.wideLeft > 0 && this.wideLeft < WARN_TIME && Math.floor(this.wideLeft * 6) % 2 === 0;
+      if (blink) g.globalAlpha = 0.4;
+      this.drawPaddle(g, this.paddle.x, this.paddleY, this.pw);
+      g.globalAlpha = 1;
+      this.mark(this.paddle.x - this.pw / 2 - 20, this.paddleY - 20, this.pw + 40, PH + 40);
+    }
+    for (const p of this.pills) { this.drawPill(g, p.x, p.y, p.phase); this.mark(p.x - PILL_W / 2 - 8, p.y - PILL_H / 2 - 8, PILL_W + 16, PILL_H + 16); } // = the glow sprite
+    for (const p of this.pickups) { // a ring where it was caught, and the name floating up
+      const age = PICKUP_TIME - p.life;
+      if (age < 0.45) {
+        g.strokeStyle = this.style(PILL_HUE, 75); g.globalAlpha = 1 - age / 0.45; g.lineWidth = 1.2;
+        g.beginPath(); g.ellipse(p.x, p.y + 2, 14 + age * 90, 3 + age * 14, 0, 0, 7); g.stroke();
+      }
+      g.globalAlpha = Math.max(0, p.life / PICKUP_TIME);
+      g.fillStyle = '#fff'; g.font = '700 10px -apple-system, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(p.label, p.x, p.y - 14 - age * 18);
+      g.globalAlpha = 1;
+      this.mark(p.x - 60, p.y - 50, 120, 62);
     }
 
     // HUD
@@ -556,15 +777,18 @@ export class Game {
     g.font = '500 11px -apple-system, system-ui, sans-serif';
     g.textBaseline = 'middle'; g.textAlign = 'left';
     const hy = this.safe.top + 24;
+    this.mark(-this.offX, hy - 9, W + this.offX * 2, 18);
     g.fillText(t('hud_level', { n: this.level.id }), 14, hy);
+    if (this.perf) { g.fillText(`${this.perf.text} · seed ${this.seed}`, 14, hy + 16); this.mark(0, hy + 7, W, 18); }
     g.fillStyle = '#fff';
     for (let i = 0; i < BALLS; i++) {
       g.globalAlpha = i < this.balls ? 1 : 0.2;
       g.beginPath(); g.arc(W / 2 - 12 + i * 12, hy, 2.6, 0, 7); g.fill();
     }
     g.globalAlpha = 1;
-    if (this.state === 'ready' && this.tutorial) this.renderTutorial(g, ts);
+    if (this.state === 'ready' && this.tutorial) { this.mark(0, this.paddleY - 80, W, this.H - this.paddleY + 80); this.renderTutorial(g, ts); }
     else if (this.state === 'ready') {
+      this.mark(0, this.paddleY - 46, W, 20);
       g.textAlign = 'center';
       g.globalAlpha = 0.5 + 0.4 * Math.sin(ts / 300);
       g.fillText(t('tap_to_launch'), W / 2, this.paddleY - 36);
@@ -596,10 +820,52 @@ export class Game {
   }
 }
 
+// A canvas under the game canvas, in the same place on screen. Without a page (tests, the level tool) it stays offscreen.
+function addLayer(canvas) {
+  const c = document.createElement('canvas');
+  if (canvas.parentNode) { c.className = 'game-layer'; c.setAttribute('aria-hidden', 'true'); canvas.parentNode.insertBefore(c, canvas); }
+  return c;
+}
+
+// Frame statistics for ?perf: time between frames and time spent drawing, over the last two seconds.
+export class PerfMeter {
+  constructor() { this.gaps = []; this.works = []; this.text = ''; this.next = 0; }
+  gap(ms) { this.gaps.push(ms); if (this.gaps.length > 120) this.gaps.shift(); }
+  work(ms) {
+    this.works.push(ms);
+    if (this.works.length > 120) this.works.shift();
+    if (performance.now() < this.next) return;
+    this.next = performance.now() + 500;
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length, max = (a) => Math.max(...a);
+    const slow = this.gaps.filter((g) => g > 25).length;
+    this.text = `${Math.round(1000 / avg(this.gaps))} fps · max ${max(this.gaps).toFixed(0)} ms · draw ${avg(this.works).toFixed(1)}/${max(this.works).toFixed(1)} ms · slow ${slow}`;
+  }
+}
+
+// The letter E built from bars, so it can be squashed as the pill rolls.
+function letterE(g, cx, cy, h, sy) {
+  const w = h * 0.62, t = h * 0.2;
+  g.fillStyle = '#fff';
+  const bar = (x, y, bw, bh) => g.fillRect(cx - w / 2 + x, cy + (y - h / 2) * sy, bw, bh * sy);
+  bar(0, 0, t, h); bar(0, 0, w, t); bar(0, (h - t) / 2, w * 0.82, t); bar(0, h - t, w, t);
+}
+
+// A small seeded random generator: the same seed gives the same numbers.
+export function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // A new colour layout every time a level starts: rows, columns, diagonals or rings, from a random starting hue.
 // Hues are rounded to steps of 15 so the brick sprites can be shared.
-function randomColours(rows) {
-  const base = Math.random() * 360, mode = Math.floor(Math.random() * 4), cx = (COLS - 1) / 2, cy = (rows - 1) / 2;
+function randomColours(rows, rand = Math.random) {
+  const base = rand() * 360, mode = Math.floor(rand() * 4), cx = (COLS - 1) / 2, cy = (rows - 1) / 2;
   const raw = [
     (x, y) => y * 45,
     (x) => x * 17,

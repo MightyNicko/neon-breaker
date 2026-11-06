@@ -66,7 +66,7 @@ Ingen power-up finns i spelet än; varje sort måste byggas i spelet också (se 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
 | P1 | Välja vilka power-ups som ska finnas på banan och hur många av varje | 1 | 1 | Klar i editorn |
-| P2 | Bredare paddel – byggs först | 1 | 1 | Öppen |
+| P2 | Bredare paddel – byggs först; kapsel med E som faller sakta, rullar och fångas av paddeln | 1 | 1 | Klar i spelet – paddeln blir 96 i stället för 64 i 20 s och blinkar de sista 2 s; ett nytt piller startar om tiden; slutar när bollen tappas |
 | P3 | Slow motion: bara bollen eller bollarna saktas ned | 2 | 2 | Öppen |
 | P4 | Multiboll: bollen blir 3; bollen förloras först när alla är borta | 2 | 2 | Öppen |
 | P5 | Eldboll som går igenom rutor, men inte igenom oförstörbara rutor | 2 | 2 | Öppen |
@@ -95,10 +95,10 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 |----|---------|------|-------------|--------|
 | S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Klar |
 | S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Klar – slumpad färgordning (rader, kolumner, diagonaler eller ringar) från en slumpad startfärg |
-| S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Öppen |
+| S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Klar – en per ruta, slumpat bland alla krossbara rutor |
 | S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Öppen |
 | S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Klar – bombens område är provisoriskt 3 × 3 |
-| S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Öppen |
+| S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Klar – fröet styr färger och power-ups; det syns i testspelets pausmeny och med ?perf, och ?seed=N upprepar en start |
 | S7 | Fem rader till nederst i spelytan, 25 i stället för 20, för häftigare banor och svårare nivåer; kontrollera att det finns plats att spela på mindre iPhones | 1 | 1 | Klar |
 | S8 | Spelet placerar banfilernas rader fast som i editorn, utan att flytta korta mönster nedåt | 1 | 1 | Klar |
 | S9 | Taket flyttat ned till översta radens överkant, så att den ligger mot taket som de yttersta rutorna mot väggarna | 1 | 1 | Klar i spelet och editorn |
@@ -107,7 +107,7 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| T1 | Provspela banan direkt i editorn med spelets riktiga fysik | 1 | 2 | Öppen |
+| T1 | Provspela banan direkt i editorn med spelets riktiga fysik | 1 | 2 | Klar – Play test öppnar det riktiga spelet i iPhone 15-storlek med banan som den är just nu, sparad eller inte, med en ruta bredvid som visar rutor kvar per sort, power-ups kvar att hitta per sort, bollar och frö. Öppnad från disken används det publicerade spelet, så ändringar i spelet syns där först efter push |
 | T2 | Förhandsvisning i iPhone-format: var paddeln och det tomma fältet hamnar | 1 | 1 | Klar |
 | T3 | Rutnätet är telefonen 1:1: rad 1 ligger alltid på samma plats, rutorna flyttas aldrig automatiskt | 1 | 1 | Klar i editorn |
 

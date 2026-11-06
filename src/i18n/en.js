@@ -46,4 +46,6 @@ export default {
   reset_yes: 'Reset',
   cancel: 'Cancel',
   hud_level: 'LEVEL {n}',
+  pu_wide: 'WIDE',
+  seed: 'Seed {n}',
 };

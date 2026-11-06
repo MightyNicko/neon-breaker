@@ -4,6 +4,7 @@
 const VOLUME = 0.28, MIN_GAP = 0.04; // seconds before the same sound can play again
 const SCALE = [261.63, 293.66, 329.63, 392, 440]; // pentatonic, so brick hits never clash
 const MUSIC_URL = new URL('../../audio/neon-breaker-sid-loop.wav', import.meta.url);
+// No tone goes below 200 Hz: deep tones make a phone speaker buzz, which feels like vibration in the hand.
 const MUSIC_VOLUME = 0.55, MUSIC_FADE = 0.06; // below the effects; the fade avoids clicks when it starts or stops
 
 let ctx = null, master = null, enabled = true;
@@ -92,13 +93,14 @@ const SOUNDS = {
     tone(f, 0.13, { type: 'triangle', vol: 0.7 });
     tone(f * 2, 0.07, { vol: 0.25 });
   },
-  paddle() { tone(196, 0.09, { type: 'square', vol: 0.3, to: 247 }); },
-  wall() { tone(130, 0.04, { type: 'square', vol: 0.12 }); },
+  paddle() { tone(392, 0.09, { type: 'triangle', vol: 0.4, to: 494 }); },
+  wall() { tone(523, 0.04, { type: 'triangle', vol: 0.15 }); },
+  powerup() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.45, delay: i * 0.05 })); },
   launch() { tone(220, 0.16, { type: 'triangle', vol: 0.6, to: 660 }); },
-  lose() { tone(330, 0.32, { type: 'sawtooth', vol: 0.3, to: 90 }); },
-  bomb() { tone(160, 0.35, { type: 'sawtooth', vol: 0.55, to: 40 }); tone(90, 0.25, { type: 'square', vol: 0.3, to: 30, delay: 0.03 }); },
+  lose() { tone(440, 0.32, { type: 'triangle', vol: 0.45, to: 220 }); },
+  bomb() { tone(392, 0.32, { type: 'triangle', vol: 0.6, to: 220 }); tone(880, 0.14, { vol: 0.3, to: 440, delay: 0.02 }); },
   gameover() {
-    [330, 262, 196].forEach((f, i) => tone(f, 0.26, { type: 'triangle', vol: 0.6, delay: i * 0.16 }));
+    [392, 330, 262].forEach((f, i) => tone(f, 0.26, { type: 'triangle', vol: 0.6, delay: i * 0.16 }));
   },
   win() {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.24, { type: 'triangle', vol: 0.6, delay: i * 0.1 }));

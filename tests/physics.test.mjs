@@ -328,3 +328,86 @@ test('loop breaker: a paddle that always hits dead centre still clears every lev
     assert.equal(g.remaining, 0, `level ${level + 1} not cleared after ${t.toFixed(0)}s`);
   }
 });
+
+test('drawing: a hit redraws only its cell, and every sprite the level needs is made before play', () => {
+  const g = rowLevel([[4, BOMB], [5, TWO_HIT], [7, NORMAL]]);
+  const keys = Object.keys(g.sprites);
+  for (let h = 1; h <= 5; h++) assert.ok(keys.includes(`b${BOMB}.${h}.0`), `bomb with ${h} hits left is ready`);
+  assert.ok(keys.some((k) => k.startsWith(`b${TWO_HIT}.1.`)), 'the cracked two-hit brick is ready');
+  g.render(0);
+  assert.equal(g.allBricks, false);
+  hitAt(g, 7);
+  assert.deepEqual(g.changed, [7]);
+  g.render(0);
+  assert.deepEqual(g.changed, [], 'drawn and cleared');
+  assert.equal(Object.keys(g.sprites).length, keys.length, 'no sprite was made during play');
+});
+
+function wideLevel(n, cells) {
+  const row = Array(21).fill(0);
+  for (const [x, t] of cells) row[x] = t;
+  setLevels([{ id: 1, speed: 270, grid: [row, Array(21).fill(0)], powerups: { wide: n, slow: 2 } }]);
+}
+
+test('power-ups: hidden in different breakable bricks, never unbreakable ones, the same for the same seed', () => {
+  wideLevel(3, [[2, SOLID], [3, SOLID], [4, NORMAL], [5, TWO_HIT], [6, BOMB], [7, NORMAL]]);
+  const placed = (seed) => { const g = new Game({ getContext: () => ctx, addEventListener() {}, width: 0, height: 0 }, {}); g.resize(0, 0); g.start(0, { seed }); return [...g.carry].join(''); };
+  for (let s = 1; s < 30; s++) {
+    const c = placed(s);
+    assert.equal([...c].filter((x) => x === '1').length, 3, 'three wide pills, the unbuilt kinds are skipped');
+    assert.ok(c[2] === '0' && c[3] === '0', 'never in an unbreakable brick');
+    assert.equal(placed(s), c, 'the same seed gives the same places');
+  }
+  setLevels(TEST_LEVELS);
+});
+
+test('power-ups: the pill falls from the broken brick, the paddle catches it and grows, for a while', () => {
+  wideLevel(1, [[10, NORMAL]]);
+  const g = newGame(0);
+  setLevels(TEST_LEVELS);
+  hitAt(g, 10);
+  assert.equal(g.pills.length, 1, 'a pill falls out');
+  g.paddle.x = g.pills[0].x;
+  g.ball.vx = 0; g.ball.vy = 0; g.ball.y = 100; // keep the ball out of the way
+  let t = 0;
+  while (g.pills.length && t < 20) { g.stepPowerups(STEP); t += STEP; }
+  assert.ok(t > 5, `it falls slowly (${t.toFixed(1)} s)`);
+  assert.ok(g.wideLeft > 0, 'caught');
+  for (let i = 0; i < 60; i++) g.stepPowerups(STEP);
+  assert.equal(g.pw, 96, 'wider after a moment');
+  g.wideLeft = 0.01;
+  for (let i = 0; i < 60; i++) g.stepPowerups(STEP);
+  assert.equal(g.pw, PW, 'and back when the time is up');
+  g.wideLeft = 10; g.pw = 96;
+  g.loseBall();
+  assert.equal(g.pw, PW, 'a lost ball ends it');
+});
+
+test('smooth motion: the ball is drawn between its last two physics positions', () => {
+  const g = newGame();
+  g.launch();
+  g.last = 0;
+  g.running = true;
+  g.frame(1000 / 60 * 1.5); // a frame half-way between two steps
+  const b = g.ball;
+  assert.ok(Math.min(b.px, b.x) <= g.drawX && g.drawX <= Math.max(b.px, b.x));
+  assert.ok(Math.min(b.py, b.y) <= g.drawY && g.drawY <= Math.max(b.py, b.y));
+});
+
+test('test play status: bricks left by type and power-ups left to find', () => {
+  wideLevel(2, [[2, SOLID], [3, NORMAL], [4, TWO_HIT], [5, BOMB], [6, NORMAL]]);
+  const g = newGame(0);
+  setLevels(TEST_LEVELS);
+  let s = g.status();
+  assert.deepEqual(s.bricks, { normal: 2, twoHit: 1, cracked: 0, bomb: 1, solid: 1 });
+  assert.equal(s.remaining, 4);
+  assert.deepEqual(s.powerups.wide, { total: 2, built: true, hidden: 2, falling: 0 });
+  assert.equal(s.powerups.slow.built, false, 'kinds the game does not have yet are reported, never hidden');
+  hitAt(g, 4);
+  assert.equal(g.status().bricks.cracked, 1);
+  for (const x of [3, 4, 6]) if (g.type[x]) hitAt(g, x);
+  for (const x of [3, 4, 6]) if (g.type[x]) hitAt(g, x);
+  s = g.status();
+  assert.equal(s.powerups.wide.hidden, [...g.carry].filter(Boolean).length);
+  assert.equal(s.powerups.wide.falling, g.pills.length);
+});

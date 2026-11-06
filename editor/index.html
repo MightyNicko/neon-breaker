@@ -61,7 +61,7 @@
     <div id="test"></div>
 
     <div class="actions">
-      <button class="btn primary" id="btn-play" type="button" disabled title="Available once the game reads the level files">▶ Play test</button>
+      <button class="btn primary" id="btn-play" type="button" title="Play this level as it is now, saved or not">▶ Play test</button>
       <div class="row">
         <button class="btn" id="btn-save" type="button" title="Save this level (Ctrl+S)">Save</button>
         <button class="btn" id="btn-save-all" type="button" title="Save every level with unsaved changes (Ctrl+Shift+S)">Save all</button>
@@ -73,6 +73,20 @@
     </div>
   </aside>
 </main>
+
+<dialog id="playtest" class="playtest">
+  <div class="playtest-bar">
+    <b id="playtest-title"></b>
+    <span id="playtest-where" class="dim"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="playtest-restart" type="button" title="Start the level again (R)">↻ Restart</button>
+    <button class="btn" id="playtest-close" type="button" title="Back to the editor (Esc)">Close</button>
+  </div>
+  <div class="playtest-body">
+    <div class="playtest-screen" id="playtest-screen"><iframe id="playtest-frame" title="Play test"></iframe></div>
+    <div class="playtest-info" id="playtest-info"></div>
+  </div>
+</dialog>
 
 <dialog id="confirm">
   <h3 id="confirm-title"></h3>

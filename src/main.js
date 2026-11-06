@@ -1,5 +1,5 @@
-import { LEVELS, loadLevels } from './game/levels.js';
-import { Game } from './game/game.js';
+import { LEVELS, loadLevels, parseLevel, setLevels } from './game/levels.js';
+import { Game, PerfMeter } from './game/game.js';
 import { Title } from './title/title.js';
 import { buildMap } from './map/map.js';
 import { TOTAL_LEVELS } from './data/zones.js';
@@ -12,9 +12,16 @@ import * as audio from './core/audio.js';
 import { VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
+// Test play from the editor: index.html?test#level=<the level file>. Only that level is played, over and over,
+// without lives, progress, title or map.
+let testLevel = null;
+if (new URLSearchParams(location.search).has('test') && location.hash.startsWith('#level=')) {
+  try { testLevel = parseLevel(decodeURIComponent(location.hash.slice(7))); } catch (e) { testLevel = null; }
+}
 // The levels come from levels/*.json. Without them the game still starts, and the map says why nothing is playable.
 let levelsFailed = false;
-try { await loadLevels(); } catch (e) { levelsFailed = true; }
+if (testLevel) setLevels([testLevel]);
+else try { await loadLevels(); } catch (e) { levelsFailed = true; }
 const state = storage.load(LEVELS.length + 1, LANGS);
 setLang(state.lang ?? DEFAULT_LANG);
 lives.refresh(state);
@@ -127,13 +134,25 @@ function onSelect(n) {
   });
 }
 
+// ?seed=123 repeats a start exactly: colours and where the power-ups hide. The seed is shown in test play's pause menu.
+const seedParam = parseInt(new URLSearchParams(location.search).get('seed'), 10);
+const seedOpt = () => (Number.isInteger(seedParam) ? { seed: seedParam } : {});
+
+function playTest() {
+  hideModal();
+  currentLevel = 1;
+  show('game');
+  audio.setMusic(true);
+  game.start(0, seedOpt());
+}
+
 function tryPlay(n) {
   lives.refresh(state);
   if (state.lives <= 0) { noLives(); return; }
   currentLevel = n;
   show('game');
   audio.setMusic(true);
-  game.start(n - 1, { tutorial: n === 1 && !state.tutorialDone && state.unlocked === 1 });
+  game.start(n - 1, { tutorial: n === 1 && !state.tutorialDone && state.unlocked === 1, ...seedOpt() });
 }
 
 // ---------- no lives ----------
@@ -178,6 +197,10 @@ const game = new Game($('game'), {
   sfx: audio.play,
   onTutorialDone() { state.tutorialDone = true; storage.save(state); },
   onEnd(won) {
+    if (testLevel) {
+      showModal({ title: t(won ? 'complete_title' : 'failed_title'), buttons: [{ label: t('retry'), primary: true, onClick: playTest }] });
+      return;
+    }
     if (won) {
       state.unlocked = Math.max(state.unlocked, Math.min(currentLevel + 1, LEVELS.length + 1));
       storage.save(state);
@@ -204,6 +227,9 @@ const game = new Game($('game'), {
   },
 });
 
+// ?perf shows frame times in the game's HUD, to find stutter on a real phone.
+if (new URLSearchParams(location.search).has('perf')) game.perf = new PerfMeter();
+
 function toMap() { game.stop(); audio.setMusic(false); show('map'); }
 
 function pauseGame() {
@@ -213,10 +239,11 @@ function pauseGame() {
   audio.setMusic(false);
   showModal({
     title: t('paused'),
-    text: t('quit_warning'),
+    text: testLevel ? t('seed', { n: game.seed }) : t('quit_warning'),
     buttons: [
       { label: t('resume'), primary: true, onClick: () => { game.resume(); audio.setMusic(true); } },
-      { label: t('quit'), onClick: () => { lives.loseLife(state); storage.save(state); toMap(); } },
+      testLevel ? { label: t('retry'), onClick: playTest }
+        : { label: t('quit'), onClick: () => { lives.loseLife(state); storage.save(state); toMap(); } },
     ],
     onClose: () => {},
   });
@@ -251,8 +278,13 @@ document.addEventListener('touchmove', (e) => { if (screen === 'game') e.prevent
 
 setInterval(() => { if (screen === 'map') renderLives(); }, 1000);
 
+// Test play in the editor's frame: tell the editor what is left, a few times a second.
+if (testLevel && window.parent !== window) {
+  setInterval(() => { if (game.type) window.parent.postMessage({ neonBreakerTest: game.status() }, '*'); }, 250);
+}
+
 applyText();
-show('title');
+if (testLevel) playTest(); else show('title');
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

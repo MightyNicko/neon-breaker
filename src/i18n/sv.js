@@ -46,4 +46,6 @@ export default {
   reset_yes: 'Nollställ',
   cancel: 'Avbryt',
   hud_level: 'BANA {n}',
+  pu_wide: 'BREDARE',
+  seed: 'Frö {n}',
 };

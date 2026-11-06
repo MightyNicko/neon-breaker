@@ -24,7 +24,7 @@
     ".......1111111......."
   ],
   "powerups": {
-    "wide": 0,
+    "wide": 10,
     "slow": 0,
     "multi": 0,
     "fire": 0,
@@ -32,21 +32,5 @@
     "small": 0,
     "fast": 0
   },
-  "test": {
-    "date": "2026-11-05",
-    "playable": true,
-    "difficulty": 3,
-    "notes": [
-      "Long waits between bricks: up to 100 s.",
-      "Bot: cleared 30 of 30. Fastest 2 min 5 s, average 3 min 27 s, slowest 5 min 6 s."
-    ],
-    "bot": {
-      "runs": 30,
-      "cleared": 30,
-      "fastestSeconds": 125,
-      "averageSeconds": 207,
-      "slowestSeconds": 306,
-      "longestGapSeconds": 100
-    }
-  }
+  "test": null
 }

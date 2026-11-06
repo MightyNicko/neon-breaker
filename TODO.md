@@ -11,7 +11,8 @@
 | B1 | Bollen går igenom paddelns sida/underkant (bara ovansidan studsar) | 1 | 2 | Klar |
 | B2 | Hörnträff mot två rutor samtidigt ger märkliga studsar (bara en axel vänds) | 2 | 2 | Öppen |
 | B3 | Bollen kan studsa nästan horisontellt mellan väggarna länge / fastna (anti-stall) | 1 | 1 | Klar – loopbrytare: paddeln styr alltid vinkeln, bara samma träff tre gånger i rad får en knuff på 3–6° |
-| B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Öppen |
+| B4 | Spelet blir söligt till och från, bollen ser ut att gå saktare (på iPad och iPhone); mät bildtiderna först för att hitta orsaken | 1 | 2 | Åtgärdad, ej bekräftad – ritningen omgjord: tre lager, bara ändrade rutor och det som rör sig ritas om, all glöd förberedd före spel. Bollen ritas nu mellan sina två senaste fysiklägen, så rörelsen blir jämn fast fysiksteg och skärmbilder inte går i takt (troligaste orsaken, eftersom det söliga märks även med få rutor kvar). Mätare med ?perf i adressen; väntar på mätning på telefon |
+| B5 | Känns som vibration i telefonen; allt som vibrerar ska bort | 1 | 1 | Struken – det var telefonen som glappade i fodralet. Spelet har ingen vibration; de djupa ljudeffekterna är ändå höjda till över 200 Hz |
 
 ## Grafik (G)
 
@@ -54,7 +55,7 @@
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Öppen |
+| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Pågår – klassiskt piller (2/3 av mockupens storlek) som faller sakta, rullar och fångas av paddeln; bredare paddel är byggd, övriga sorter återstår |
 | S2 | Klara en bana och få 1–3 stjärnor (grund att bestämma; förslaget "bollar kvar" avvisat av användaren) | 2 | 2 | Öppen – beslut krävs |
 | S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | 2 | 2 | Öppen – beslut krävs |
 | S4 | Utmaningsbanor: vissa banor (t.ex. var 10:e) får större ruta på kartan; klara banan på tid för in-game valuta | 3 | 3 | Öppen (kräver valuta, jfr M1) |

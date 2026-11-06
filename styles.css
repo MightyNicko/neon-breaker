@@ -44,6 +44,7 @@ body{position:fixed;inset:0;overflow:hidden}
 
 /* ---------- game ---------- */
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.game-layer{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
 .pause{position:absolute;top:calc(env(safe-area-inset-top) + 6px);right:12px;width:36px;height:36px;border-radius:50%;
   background:none;border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;gap:4px;
   box-shadow:0 0 8px rgba(224,64,255,.35)}
