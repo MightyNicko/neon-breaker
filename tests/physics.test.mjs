@@ -399,7 +399,7 @@ test('test play status: bricks left by type and power-ups left to find', () => {
   const g = newGame(0);
   setLevels(TEST_LEVELS);
   let s = g.status();
-  assert.deepEqual(s.bricks, { normal: 2, twoHit: 1, cracked: 0, bomb: 1, solid: 1 });
+  assert.deepEqual(s.bricks, { normal: 2, twoHit: 1, threeHit: 0, cracked: 0, bomb: 1, solid: 1 });
   assert.equal(s.remaining, 4);
   assert.deepEqual(s.powerups.wide, { total: 2, fixed: 2, chance: 0, extra: 0, built: true, hidden: 2, falling: 0 });
   assert.equal(s.powerups.laser.built, false, 'kinds the game does not have yet are reported, never hidden');
@@ -640,4 +640,15 @@ test('bomb explosion: a flash and ring, and the bricks in the blast shatter into
   g.render(0);
   g.updateParticles(1);
   assert.equal(g.shards.length, 0); assert.equal(g.blasts.length, 0);
+});
+
+test('three-hit brick: holds after one and two hits, breaks on the third; its sprites are ready before play', async () => {
+  const { THREE_HIT } = await import('../src/game/levels.js');
+  const g = rowLevel([[10, THREE_HIT], [15, NORMAL]]);
+  for (let h = 1; h <= 3; h++) assert.ok(Object.keys(g.sprites).some((k) => k.startsWith(`b${THREE_HIT}.${h}.`)));
+  hitAt(g, 10); hitAt(g, 10);
+  assert.equal(g.type[10], THREE_HIT);
+  assert.equal(g.status().bricks.cracked, 1);
+  hitAt(g, 10);
+  assert.equal(g.type[10], 0);
 });

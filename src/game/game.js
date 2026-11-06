@@ -2,7 +2,7 @@
 // Three stacked canvases, so a frame only touches the pixels that move: the background (drawn once per resize),
 // the bricks (only the cells that changed are redrawn) and, on top, the ball, paddle, effects and HUD
 // (only the areas drawn in the previous frame are cleared).
-import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, isBomb } from './levels.js';
+import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, THREE_HIT, SOLID, isBomb } from './levels.js';
 import { t } from '../core/i18n.js';
 import { drawCore, CORE_COLOUR } from '../ui/core-icon.js';
 import { KINDS, BY_CODE, WARN_TIME, WIDE_W, SMALL_W, GUN_W, GUN_INTERVAL, GUN_MUZZLE, SHOT_SPEED, SLOW_FACTOR, FAST_FACTOR, SPLIT_ANGLE, MAX_BALLS, addEffect, tickEffects, rollCounts } from './powerups.js';
@@ -188,11 +188,12 @@ export class Game {
   // What is left on the board, for the editor's test play: bricks by type, and per power-up in the level file
   // how many are still hidden. built: false for the kinds the game does not have yet (they are never hidden).
   status() {
-    const bricks = { normal: 0, twoHit: 0, cracked: 0, bomb: 0, solid: 0 };
+    const bricks = { normal: 0, twoHit: 0, threeHit: 0, cracked: 0, bomb: 0, solid: 0 }; // cracked: hit, but not broken yet
     for (let i = 0; i < this.type.length; i++) {
       const t = this.type[i];
       if (t === NORMAL) bricks.normal++;
       else if (t === TWO_HIT) { bricks.twoHit++; if (this.hits[i] < HITS[TWO_HIT]) bricks.cracked++; }
+      else if (t === THREE_HIT) { bricks.threeHit++; if (this.hits[i] < HITS[THREE_HIT]) bricks.cracked++; }
       else if (isBomb(t)) bricks.bomb++;
       else if (t === SOLID) bricks.solid++;
     }
@@ -681,7 +682,11 @@ export class Game {
     } else {
       g.fillStyle = hsl(hue, 100, 60, 0.18); g.fillRect(pad + lw, pad + lw, b - 2 * lw, b - 2 * lw);
       outline(pad, pad, b, hsl(hue, 100, 66));
-      if (type === TWO_HIT && hits > 1) { const d = lw * 3; outline(pad + d, pad + d, b - 2 * d, hsl(hue, 100, 72)); }
+      // a brick that takes more hits has an inner outline for each hit it has left after the next one
+      // (the spacing only shrinks when the outlines would not fit, as on small screens)
+      let step = lw * 3;
+      if (b - 2 * step * (HITS[type] - 1) <= lw * 2) step = Math.max(lw + 1, Math.floor(b / (2 * HITS[type] + 1)));
+      if (type === TWO_HIT || type === THREE_HIT) for (let k = 1; k < hits; k++) { const d = step * k; outline(pad + d, pad + d, b - 2 * d, hsl(hue, 100, 72)); }
     }
     return (this.sprites[key] = { c, pad });
   }

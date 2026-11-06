@@ -86,6 +86,7 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 | R3 | Oförstörbar (räknas inte när banan ska klaras) | 1 | 1 | Klar |
 | R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Klar – bomber som sprängs efter 1, 2, 3 eller 5 träffar (a, b, c, B i banfilen; tangent 5, 6, 7, 4 i editorn); alla spränger provisoriskt 3 × 3, även oförstörbara, med kedjereaktion. Sprängningen: vit blixt och tryckvåg, och rutorna splittras i neonbitar som faller (förslag E) |
 | R5 | Rutorna ser olika ut per sort, så att de syns i både editorn och spelet | 1 | 1 | Klar |
+| R6 | Kräver 3 träffar: två inre ramar, en försvinner för varje träff (3 i banfilen, tangent 8 i editorn) | 2 | 1 | Klar |
 
 ## Spelet (S)
 

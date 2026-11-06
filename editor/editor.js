@@ -314,7 +314,9 @@
     head('Bricks left to break');
     const b = s.bricks;
     row('Normal', b.normal, !b.normal);
-    row('2 hits', b.cracked ? `${b.twoHit} (${b.cracked} hit once)` : b.twoHit, !b.twoHit);
+    row('2 hits', b.twoHit, !b.twoHit);
+    row('3 hits', b.threeHit ?? 0, !b.threeHit);
+    if (b.cracked) row('Hit, not broken yet', b.cracked);
     row('Bomb', b.bomb, !b.bomb);
     row('Total', s.remaining, !s.remaining);
     row('Unbreakable', b.solid, !b.solid);
@@ -408,19 +410,25 @@
   }
 
   // ---------- drawing a brick ----------
-  // A brick exactly b x b at (x, y). Types: 1 normal, 2 two hits (double edge), 3 unbreakable (striped), 4 bomb (5 hits).
+  // A brick exactly b x b at (x, y): normal; two and three hits (one or two inner edges); unbreakable (striped);
+  // bombs (orange, with the hits they take).
   function brick(g, x, y, b, t, h, glow) {
     const lw = Math.max(1, Math.round(b * 0.075));
     g.save();
-    if (t === C.NORMAL || t === C.TWO_HIT) {
-      g.strokeStyle = `hsl(${h},100%,${t === C.TWO_HIT ? 72 : 66}%)`; g.lineWidth = lw;
+    if (t === C.NORMAL || t === C.TWO_HIT || t === C.THREE_HIT) {
+      g.strokeStyle = `hsl(${h},100%,${t === C.NORMAL ? 66 : 72}%)`; g.lineWidth = lw;
       if (glow) { g.shadowColor = `hsl(${h},100%,60%)`; g.shadowBlur = b * 0.4; }
       g.strokeRect(x + lw / 2, y + lw / 2, b - lw, b - lw);
       g.shadowBlur = 0;
       g.fillStyle = `hsla(${h},100%,60%,.18)`; g.fillRect(x + lw, y + lw, b - 2 * lw, b - 2 * lw);
-      if (t === C.TWO_HIT) {
-        const d = lw * 2.5;
-        if (b - 2 * d > lw * 2) g.strokeRect(x + d + lw / 2, y + d + lw / 2, b - 2 * d - lw, b - 2 * d - lw);
+      // one inner edge per extra hit; the spacing only shrinks when the edges would not fit, in whole pixels
+      const extra = C.HITS[t] - 1;
+      let step = lw * 2.5;
+      if (extra && b - 2 * step * extra <= lw * 2) step = b / (2 * C.HITS[t] + 1);
+      step = Math.max(lw + 1, Math.round(step));
+      for (let k = 1; k < C.HITS[t]; k++) {
+        const d = step * k;
+        g.strokeRect(x + d + lw / 2, y + d + lw / 2, Math.max(lw, b - 2 * d - lw), Math.max(lw, b - 2 * d - lw));
       }
     } else if (t === C.SOLID) {
       g.fillStyle = '#1c1e29'; g.fillRect(x, y, b, b);
@@ -631,7 +639,7 @@
     for (let y = 0; y < C.ROWS; y++) for (let x = 0; x < C.COLS; x++) {
       const t = level.cells[C.idx(x, y)];
       if (!t) continue;
-      g.fillStyle = t === C.SOLID ? '#8a90a8' : C.isBomb(t) ? '#ff6a3c' : `hsl(${hue(y)},100%,${t === C.TWO_HIT ? 75 : 62}%)`;
+      g.fillStyle = t === C.SOLID ? '#8a90a8' : C.isBomb(t) ? '#ff6a3c' : `hsl(${hue(y)},100%,${t === C.NORMAL ? 62 : 75}%)`;
       g.fillRect(x * s, y * s, s - 1, s - 1);
     }
     return c;
@@ -732,7 +740,7 @@
     // a chance adds at most one, so the most a start can hide is the counts plus one per ticked chance
     const chances = Object.values(l.chances).filter((n) => n > 0).length;
     const pus = Object.values(l.powerups).reduce((a, b) => a + b, 0) + (chances ? ` (+${chances} by chance)` : '');
-    const rows = [['Bricks', st.total], ['Normal', st.normal], ['2 hits', st.twoHit], ['Unbreakable', st.solid], ['Bombs', st.bomb],
+    const rows = [['Bricks', st.total], ['Normal', st.normal], ['2 hits', st.twoHit], ['3 hits', st.threeHit], ['Unbreakable', st.solid], ['Bombs', st.bomb],
       ['Rows', C.usedRows(l.cells)], ['Power-ups', pus], ['Bricks that can carry them', st.carriers]];
     $('stats').replaceChildren(...rows.flatMap(([k, v]) => {
       const a = document.createElement('span'); a.textContent = k;

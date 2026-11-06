@@ -14,7 +14,7 @@ test('format: a level survives save and load, with every brick type and power-up
   l.cells = C.paint(l.cells, [[1, 1]], C.TWO_HIT);
   l.cells = C.paint(l.cells, [[2, 2]], C.SOLID);
   l.cells = C.paint(l.cells, [[4, 4]], C.BOMB);
-  l.cells = C.paint(l.cells, [[5, 4]], C.BOMB1); l.cells = C.paint(l.cells, [[6, 4]], C.BOMB2); l.cells = C.paint(l.cells, [[7, 4]], C.BOMB3);
+  l.cells = C.paint(l.cells, [[5, 4]], C.BOMB1); l.cells = C.paint(l.cells, [[6, 4]], C.BOMB2); l.cells = C.paint(l.cells, [[7, 4]], C.BOMB3); l.cells = C.paint(l.cells, [[8, 4]], C.THREE_HIT);
   l.powerups.wide = 2; l.powerups.fast = 1; l.chances.multi = 10;
   const text = C.toFile(l), back = C.fromFile(text);
   assert.deepEqual(back.cells, l.cells);
@@ -90,7 +90,7 @@ test('stats: counts per type and the bricks that can carry power-ups', () => {
   cells = C.paint(cells, [[2, 0]], C.TWO_HIT);
   cells = C.paint(cells, [[3, 0]], C.SOLID);
   cells = C.paint(cells, [[4, 0]], C.BOMB);
-  assert.deepEqual(C.stats(cells), { normal: 2, twoHit: 1, solid: 1, bomb: 1, total: 5, carriers: 4 });
+  assert.deepEqual(C.stats(cells), { normal: 2, twoHit: 1, threeHit: 0, solid: 1, bomb: 1, total: 5, carriers: 4 });
 });
 
 test('preview layout: row 1 has a fixed place against the ceiling, and 25 full rows still leave room to play', () => {
