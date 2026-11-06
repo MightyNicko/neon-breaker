@@ -1,5 +1,5 @@
 // Network-first with offline fallback. Bump VERSION to drop old caches on release.
-const VERSION = 'nb-19';
+const VERSION = 'nb-20';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',

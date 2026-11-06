@@ -80,6 +80,9 @@ body{position:fixed;inset:0;overflow:hidden}
 .buttons{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .btn{font:500 13px/1 -apple-system,system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);
   background:rgba(255,102,255,.1);border:1.3px solid #f6f;border-radius:2px;padding:14px 16px;box-shadow:0 0 8px rgba(255,102,255,.45)}
+/* a button with an icon: icon and text centred on the same line; the text's trailing letter-spacing is evened out */
+.btn.has-icon{display:flex;align-items:center;justify-content:center;gap:9px;padding-left:calc(16px + .2em)}
+.btn .core-icon{flex:none;width:18px;height:18px;margin:-3px 0;filter:drop-shadow(0 0 3px #5ff)}
 .btn.primary{font-size:15px;padding:17px 16px;background:rgba(95,255,255,.15);border-color:var(--cyan);box-shadow:0 0 14px rgba(95,255,255,.6)}
 .btn:active{background:rgba(255,255,255,.18)}
 .btn.sel{border-color:#fff;background:rgba(95,255,255,.2);box-shadow:0 0 14px rgba(95,255,255,.6)}

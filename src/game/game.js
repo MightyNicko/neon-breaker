@@ -671,9 +671,9 @@ export class Game {
     g.restore();
   }
 
-  coreSprite() { // 12 points, with glow
-    return this.sprite('core', 24, 24, (g, k) => {
-      g.translate(6, 6); g.scale(0.5, 0.5);
+  coreSprite() { // 17 points, with a glow that fits inside the sprite
+    return this.sprite('core', 27, 27, (g, k) => {
+      g.translate(5, 5); g.scale(17 / 24, 17 / 24);
       g.shadowColor = CORE_COLOUR; g.shadowBlur = 5 * k;
       drawCore(g);
     });
@@ -880,7 +880,8 @@ export class Game {
     g.font = '500 11px -apple-system, system-ui, sans-serif';
     g.textBaseline = 'middle'; g.textAlign = 'left';
     const hy = this.safe.top + 24;
-    this.mark(-this.offX, hy - 9, W + this.offX * 2, 18);
+    // everything drawn in the HUD row must lie inside this cleared band, or its glow piles up frame after frame
+    this.mark(-this.offX, hy - 15, W + this.offX * 2, 30);
     g.fillText(t('hud_level', { n: this.level.id }), 14, hy);
     if (this.perf || this.showSeed) {
       const line = [this.perf?.text, this.showSeed ? `seed ${this.seed}` : ''].filter(Boolean).join(' · ');
@@ -889,9 +890,9 @@ export class Game {
     const cores = this.hooks.cores?.() ?? '';
     if (cores !== '') { // the Core icon and how many the player has
       const icon = this.coreSprite();
-      this.blit(g, icon, W / 2 - 13 - icon.w / 2, hy - icon.h / 2);
-      g.fillStyle = '#fff'; g.textAlign = 'left';
-      g.fillText(String(cores), W / 2 - 3, hy);
+      this.blit(g, icon, W / 2 - 12 - icon.w / 2, hy - icon.h / 2);
+      g.fillStyle = '#fff'; g.textAlign = 'left'; g.font = '600 13px -apple-system, system-ui, sans-serif';
+      g.fillText(String(cores), W / 2 - 1, hy + 0.5);
     }
     if (this.state === 'ready' && this.tutorial) { this.mark(0, this.paddleY - 80, W, this.H - this.paddleY + 80); this.renderTutorial(g, ts); }
     else if (this.state === 'ready') {

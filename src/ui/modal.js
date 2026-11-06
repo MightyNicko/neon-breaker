@@ -15,6 +15,7 @@ export function showModal({ title, text, buttons = [], onClose, build }) {
     const btn = document.createElement('button');
     btn.className = 'btn' + (b.primary ? ' primary' : '');
     btn.textContent = b.label;
+    if (b.icon) { btn.prepend(b.icon()); btn.classList.add('has-icon'); } // an icon before the text, e.g. the Core on buttons that cost one
     btn.addEventListener('click', () => { if (b.keepOpen !== true) close(); b.onClick?.(); });
     row.append(btn);
   }

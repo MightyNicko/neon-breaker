@@ -175,8 +175,9 @@ function onSelect(n) {
   currentLevel = n;
   showModal({
     title: t('level', { n }),
+    text: dev('infiniteCores') ? '' : t('start_cost'),
     buttons: [
-      { label: t('play'), primary: true, onClick: () => tryPlay(n) },
+      { label: t('play'), primary: true, icon: coreIcon, onClick: () => tryPlay(n) },
       { label: t('close') },
     ],
   });
@@ -196,7 +197,11 @@ function playTest() {
 
 function tryPlay(n) {
   cores.refresh(state);
-  if (state.cores <= 0 && !dev('infiniteCores')) { noCores(); return; }
+  if (!dev('infiniteCores')) { // starting a level costs a Core
+    if (state.cores <= 0) { noCores(); return; }
+    cores.spendCore(state);
+    storage.save(state);
+  }
   currentLevel = n;
   show('game');
   audio.setMusic(true);
@@ -241,7 +246,9 @@ function resizeGame() {
   game.resize(parseFloat(cs.paddingTop) || 0, parseFloat(cs.paddingBottom) || 0);
 }
 
-// A miss is free; going on costs a Core. With none left the level ends. Test play just goes on.
+const coreIcon = () => coreSvg(true);
+
+// Starting a level costs a Core, a miss is free, and going on after it costs one more. With none left the level ends. Test play just goes on.
 function onMiss() {
   if (testLevel) { game.continueBall(); return; }
   audio.setMusic(false);
@@ -255,7 +262,7 @@ function onMiss() {
     title: t('missed_title'),
     text: free ? '' : t('missed_text', { n: state.cores }),
     buttons: [
-      { label: t('use_core'), primary: true, onClick: () => {
+      { label: t('use_core'), primary: true, icon: coreIcon, onClick: () => {
         if (!free) { cores.spendCore(state); storage.save(state); }
         game.continueBall();
         audio.setMusic(true);
@@ -282,7 +289,7 @@ const game = new Game($('game'), {
     showModal({
       title: t('complete_title'),
       buttons: [
-        ...(hasNext ? [{ label: t('next_level'), primary: true, onClick: () => tryPlay(currentLevel + 1) }] : []),
+        ...(hasNext ? [{ label: t('next_level'), primary: true, icon: coreIcon, onClick: () => tryPlay(currentLevel + 1) }] : []),
         { label: t('map'), primary: !hasNext, onClick: toMap },
       ],
     });
