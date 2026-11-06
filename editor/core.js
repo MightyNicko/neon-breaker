@@ -7,12 +7,18 @@
   const FORMAT = 1;                 // bump when the file format changes; older editors refuse newer files
   const COLS = 21, ROWS = 25, ZONE_SIZE = 20;
   // cell types and how they are written in the file
-  const EMPTY = 0, NORMAL = 1, TWO_HIT = 2, SOLID = 3, BOMB = 4;
-  const CHARS = ['.', '1', '2', 'X', 'B'];
+  // bombs blow after 1, 2, 3 or 5 hits: 'a', 'b', 'c', 'B' in the file
+  const EMPTY = 0, NORMAL = 1, TWO_HIT = 2, SOLID = 3, BOMB = 4, BOMB1 = 5, BOMB2 = 6, BOMB3 = 7;
+  const CHARS = ['.', '1', '2', 'X', 'B', 'a', 'b', 'c'];
+  const HITS = [0, 1, 2, 0, 5, 1, 2, 3];
+  const isBomb = (t) => t === BOMB || t === BOMB1 || t === BOMB2 || t === BOMB3;
   const TYPES = [
     { t: NORMAL, name: 'Normal', key: '1' },
     { t: TWO_HIT, name: '2 hits', key: '2' },
     { t: SOLID, name: 'Unbreakable', key: '3' },
+    { t: BOMB1, name: 'Bomb · 1 hit', key: '5' },
+    { t: BOMB2, name: 'Bomb · 2 hits', key: '6' },
+    { t: BOMB3, name: 'Bomb · 3 hits', key: '7' },
     { t: BOMB, name: 'Bomb · 5 hits', key: '4' },
   ];
   const POWERUPS = [
@@ -165,10 +171,11 @@
   }
 
   function stats(cells) {
-    const n = [0, 0, 0, 0, 0];
+    const n = [0, 0, 0, 0, 0, 0, 0, 0];
     for (const t of cells) n[t]++;
-    return { normal: n[NORMAL], twoHit: n[TWO_HIT], solid: n[SOLID], bomb: n[BOMB],
-      total: n[NORMAL] + n[TWO_HIT] + n[SOLID] + n[BOMB], carriers: n[NORMAL] + n[TWO_HIT] + n[BOMB] };
+    const bomb = n[BOMB] + n[BOMB1] + n[BOMB2] + n[BOMB3];
+    return { normal: n[NORMAL], twoHit: n[TWO_HIT], solid: n[SOLID], bomb,
+      total: n[NORMAL] + n[TWO_HIT] + n[SOLID] + bomb, carriers: n[NORMAL] + n[TWO_HIT] + bomb };
   }
 
   // ---------- where the game puts things (mirrors resize in src/game/game.js) ----------
@@ -188,7 +195,7 @@
   const IPHONE_15 = { w: 393, h: 852, safeTop: 59, safeBottom: 34 };
 
   const api = {
-    FORMAT, COLS, ROWS, ZONE_SIZE, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB, CHARS, TYPES, POWERUPS, SPEED, SPEED_PRESETS, GAME, IPHONE_15,
+    FORMAT, COLS, ROWS, ZONE_SIZE, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB, BOMB1, BOMB2, BOMB3, HITS, isBomb, CHARS, TYPES, POWERUPS, SPEED, SPEED_PRESETS, GAME, IPHONE_15,
     zoneOf, fileName, idx, inside, newLevel, copyLevel, usedRows, toFile, fromFile, indexFile,
     withMirror, line, rect, fillArea, paint, shift, stats, gameLayout,
   };

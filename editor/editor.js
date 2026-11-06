@@ -431,14 +431,14 @@
       for (let k = -b; k < b; k += step) { g.moveTo(x + k, y + b); g.lineTo(x + k + b, y); }
       g.stroke();
       g.strokeStyle = '#9aa0b8'; g.lineWidth = lw; g.strokeRect(x + lw / 2, y + lw / 2, b - lw, b - lw);
-    } else if (t === C.BOMB) {
+    } else if (C.isBomb(t)) {
       if (glow) { g.shadowColor = 'rgba(255,90,60,.9)'; g.shadowBlur = b * 0.45; }
       g.strokeStyle = '#ff6a3c'; g.lineWidth = lw; g.strokeRect(x + lw / 2, y + lw / 2, b - lw, b - lw);
       g.shadowBlur = 0;
       g.fillStyle = 'rgba(255,90,60,.35)'; g.fillRect(x + lw, y + lw, b - 2 * lw, b - 2 * lw);
       if (b >= 9) {
         g.fillStyle = '#ffd9a0'; g.font = `800 ${Math.round(b * 0.58)}px -apple-system, system-ui, sans-serif`;
-        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('5', x + b / 2, y + b / 2 + b * 0.04);
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(C.HITS[t]), x + b / 2, y + b / 2 + b * 0.04);
       }
     }
     g.restore();
@@ -631,7 +631,7 @@
     for (let y = 0; y < C.ROWS; y++) for (let x = 0; x < C.COLS; x++) {
       const t = level.cells[C.idx(x, y)];
       if (!t) continue;
-      g.fillStyle = t === C.SOLID ? '#8a90a8' : t === C.BOMB ? '#ff6a3c' : `hsl(${hue(y)},100%,${t === C.TWO_HIT ? 75 : 62}%)`;
+      g.fillStyle = t === C.SOLID ? '#8a90a8' : C.isBomb(t) ? '#ff6a3c' : `hsl(${hue(y)},100%,${t === C.TWO_HIT ? 75 : 62}%)`;
       g.fillRect(x * s, y * s, s - 1, s - 1);
     }
     return c;

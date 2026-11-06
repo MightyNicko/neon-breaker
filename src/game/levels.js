@@ -1,10 +1,12 @@
 // Levels are read from levels/*.json, the files the editor (editor/index.html) writes; levels/index.json lists them.
-// Grid rows are text: '.' empty, '1' normal, '2' two hits, 'X' unbreakable, 'B' bomb (5 hits).
+// Grid rows are text: '.' empty, '1' normal, '2' two hits, 'X' unbreakable, and bombs that blow after
+// 'a' 1 hit, 'b' 2 hits, 'c' 3 hits or 'B' 5 hits.
 // Row 1 always has the same place on screen, so a level looks exactly as drawn in the editor.
 export const COLS = 21, ROWS = 25, FORMAT = 1;
-export const EMPTY = 0, NORMAL = 1, TWO_HIT = 2, SOLID = 3, BOMB = 4;
-const CHARS = '.12XB';
-export const HITS = [0, 1, 2, 0, 5];     // hits each type takes; unbreakable bricks never break
+export const EMPTY = 0, NORMAL = 1, TWO_HIT = 2, SOLID = 3, BOMB = 4, BOMB1 = 5, BOMB2 = 6, BOMB3 = 7;
+const CHARS = '.12XBabc';
+export const HITS = [0, 1, 2, 0, 5, 1, 2, 3]; // hits each type takes; unbreakable bricks never break
+export const isBomb = (t) => t === BOMB || t === BOMB1 || t === BOMB2 || t === BOMB3;
 const SPEED = { min: 150, max: 450, start: 270 };
 
 export let LEVELS = [];                 // sorted by number; filled by loadLevels()

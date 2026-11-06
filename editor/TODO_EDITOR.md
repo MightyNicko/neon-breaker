@@ -66,13 +66,13 @@ Ingen power-up finns i spelet än; varje sort måste byggas i spelet också (se 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
 | P1 | Välja vilka power-ups som ska finnas på banan och hur många av varje | 1 | 1 | Klar i editorn |
-| P2 | Bredare paddel – byggs först; kapsel med E som faller sakta, rullar och fångas av paddeln | 1 | 1 | Klar i spelet – paddeln blir 96 i stället för 64 i 20 s och blinkar de sista 2 s; ett nytt piller startar om tiden; slutar när bollen tappas |
-| P3 | Slow motion: bara bollen eller bollarna saktas ned | 2 | 2 | Öppen |
+| P2 | Bredare paddel – byggs först; kapsel med E som faller sakta, rullar och fångas av paddeln | 1 | 1 | Klar i spelet – pillret B, texten BIG; paddeln blir 96 i stället för 64 i 20 s och blinkar de sista 2 s; slutar när bollen tappas |
+| P3 | Slow motion: bara bollen eller bollarna saktas ned | 2 | 2 | Klar i spelet – pillret S (blått), SLOW: bollarna går i 65 % av farten i 10 s; krockar med FAST |
 | P4 | Multiboll: bollen blir 3; bollen förloras först när alla är borta | 2 | 2 | Klar i spelet – pillret M: den högsta bollen blir tre, de två nya ±20°; max 12 bollar; missen räknas först när sista bollen är borta |
-| P5 | Eldboll som går igenom rutor, men inte igenom oförstörbara rutor | 2 | 2 | Öppen |
-| P6 | Maskingevär: klicka på skärmen för att skjuta | 2 | 3 | Öppen – beslut krävs när punkten tas: var man trycker för att skjuta, så att det inte krockar med att flytta paddeln |
-| P7 | Mindre paddel (negativ) | 2 | 1 | Öppen |
-| P8 | Snabbare boll (negativ) | 2 | 1 | Öppen |
+| P5 | Eldboll som går igenom rutor, men inte igenom oförstörbara rutor | 2 | 2 | Klar i spelet – fallande eldklot, FIRE: i 8 s brinner alla bollar (även de som multiboll lägger till) och ser ut som eldklotet; de går rakt igenom krossbara rutor (även rutor med två träffar och bomber) men studsar på oförstörbara |
+| P6 | Maskingevär: klicka på skärmen för att skjuta | 2 | 3 | Klar i spelet – roterande rött sikte, GUN: paddeln krymper och förvandlas till en plasmakanon (44 bred) på knappt en halv sekund med gnistor, och skjuter sedan själv i 8 s, 4 skott i sekunden växelvis från två mynningar; varje skott är en träff; oförstörbara rutor stoppar skotten; krockar med BIG och TINY |
+| P7 | Mindre paddel (negativ) | 2 | 1 | Klar i spelet – pillret T (rött, negativt), TINY: paddeln blir 44 i 15 s; krockar med BIG |
+| P8 | Snabbare boll (negativ) | 2 | 1 | Klar i spelet – pillret F (rött, negativt), FAST: bollarna går i 130 % av farten i 10 s; krockar med SLOW |
 | P9 | Hur länge en power-up varar bestäms per power-up när den byggs; vad som händer när två krockar (t.ex. bredare och mindre paddel) | 1 | 1 | Beslutat: bara power-ups som påverkar samma sak krockar (bredare/mindre paddel, långsam/snabb boll), och då tar den senaste över med ny tid. Alla andra gäller samtidigt, t.ex. bredare paddel och multiboll |
 
 ## Rutsorter (R)
@@ -84,7 +84,7 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 | R1 | Kräver en träff (dagens ruta) | 1 | 1 | Klar i editorn |
 | R2 | Kräver 2 träffar | 1 | 1 | Klar |
 | R3 | Oförstörbar (räknas inte när banan ska klaras) | 1 | 1 | Klar |
-| R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Klar – provisoriskt 3 × 3, även kedjereaktion |
+| R4 | Bomb: sprängs efter 5 träffar och förstör alla rutor runt sig, även oförstörbara | 2 | 2 | Klar – bomber som sprängs efter 1, 2, 3 eller 5 träffar (a, b, c, B i banfilen; tangent 5, 6, 7, 4 i editorn); alla spränger provisoriskt 3 × 3, även oförstörbara, med kedjereaktion. Sprängningen: vit blixt och tryckvåg, och rutorna splittras i neonbitar som faller (förslag E) |
 | R5 | Rutorna ser olika ut per sort, så att de syns i både editorn och spelet | 1 | 1 | Klar |
 
 ## Spelet (S)
@@ -96,7 +96,7 @@ Bara vanliga rutor finns i spelet idag; de andra sorterna måste byggas i spelet
 | S1 | Spelet läser banorna från levels/ i stället för formlerna i levels.js | 1 | 2 | Klar |
 | S2 | Färger slumpas varje gång banan startar, bland utvalda neonpaletter per zon så att det alltid blir snyggt | 1 | 1 | Klar – slumpad färgordning (rader, kolumner, diagonaler eller ringar) från en slumpad startfärg |
 | S3 | Power-ups göms i slumpvisa rutor varje start och faller ut när rutan går sönder; aldrig i oförstörbara rutor och inte alla i de sista rutorna | 1 | 2 | Klar – en per ruta, slumpat bland alla krossbara rutor |
-| S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Pågår – bredare paddel, multiboll och golv byggda |
+| S4 | Bygga power-up-sorterna (P2–P8) i spelet | 1 | 3 | Klar – alla power-up-sorter är byggda |
 | S5 | Bygga rutsorterna (R2–R4) i spelet | 1 | 2 | Klar – bombens område är provisoriskt 3 × 3 |
 | S6 | Slumpen får ett startvärde som sparas, så att en konstig placering kan återskapas | 2 | 1 | Klar – fröet styr färger och power-ups; det syns i testspelets pausmeny och med ?perf, och ?seed=N upprepar en start |
 | S7 | Fem rader till nederst i spelytan, 25 i stället för 20, för häftigare banor och svårare nivåer; kontrollera att det finns plats att spela på mindre iPhones | 1 | 1 | Klar |

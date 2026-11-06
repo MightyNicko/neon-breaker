@@ -2,10 +2,10 @@
 // Three stacked canvases, so a frame only touches the pixels that move: the background (drawn once per resize),
 // the bricks (only the cells that changed are redrawn) and, on top, the ball, paddle, effects and HUD
 // (only the areas drawn in the previous frame are cleared).
-import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, BOMB } from './levels.js';
+import { COLS, LEVELS, HITS, EMPTY, NORMAL, TWO_HIT, SOLID, isBomb } from './levels.js';
 import { t } from '../core/i18n.js';
 import { drawCore, CORE_COLOUR } from '../ui/core-icon.js';
-import { KINDS, BY_CODE, WARN_TIME, WIDE_W, SPLIT_ANGLE, MAX_BALLS, addEffect, tickEffects, rollCounts } from './powerups.js';
+import { KINDS, BY_CODE, WARN_TIME, WIDE_W, SMALL_W, GUN_W, GUN_INTERVAL, GUN_MUZZLE, SHOT_SPEED, SLOW_FACTOR, FAST_FACTOR, SPLIT_ANGLE, MAX_BALLS, addEffect, tickEffects, rollCounts } from './powerups.js';
 
 export const W = 336;            // logical width (21 columns x 16)
 const CELL = W / COLS, BR = 14.5;
@@ -22,6 +22,9 @@ const TOP = 48;                  // below the safe area: the ceiling, and the to
 const MAX_DPR = 3, LINE_PT = 1;   // draw at the screen's full resolution; brick outlines are 1 point wide
 const MAX_PARTICLES = 160;
 const FLASH_TIME = 0.16;
+// The explosion (chosen look E): a white flash and a ring of light from the bomb, and every brick in the blast
+// breaks into 3 x 3 shards in its own colour that fly out from the bomb and fall.
+const BLAST_TIME = 0.55, BLAST_RING = 42, SHARD_LIFE = 0.9, SHARD_FALL = 280, MAX_SHARDS = 360;
 const BOMB_RADIUS = 1;            // a bomb clears the bricks around it, unbreakable ones too (provisional: 3 x 3)
 // Power-ups (powerups.js) hide in random breakable bricks and fall out as a pill when the brick breaks.
 const PILL_W = 20, PILL_H = 8, PILL_FALL = 65; // the falling pill; about a quarter of the ball's speed
@@ -29,6 +32,7 @@ const GROW_TIME = 0.25;          // the wider paddle grows or shrinks over this 
 const FLOOR_GAP = 50;            // the floor power-up lies this far below the paddle (less on short screens)
 const FENCE_POST = 5, FENCE_STEP = 10; // the floor's look: post width at each wall, beam spacing
 const PICKUP_TIME = 1.2;
+const GUN_MORPH = 0.45, MORPH_SPLIT = 0.55; // the paddle turning into the cannon: seconds, and when it shrinks no more and changes
 const BG = '#0a0614';            // = theme-color; the top edge of the page must stay this solid colour
 
 const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
@@ -48,6 +52,10 @@ export class Game {
     this.pickups = [];            // the ring and name shown where a power-up was caught
     this.effects = {};            // running power-ups: { key: seconds left }
     this.floorHits = [];          // where balls bounced on the floor, for its flash
+    this.shots = [];              // the machine gun's shots on their way up
+    this.recoil = [0, 0];         // the two muzzles, 1 just after a shot
+    this.blasts = [];             // bomb explosions: flash and ring
+    this.shards = [];             // pieces of the bricks a bomb broke
     this.pw = PW;                 // paddle width, wider with the power-up
     this.balls = [];              // every ball in play; this.ball is the first
     this.hooks = hooks;           // { onEnd(won), onPause() }
@@ -148,8 +156,8 @@ export class Game {
     this.misses = 0;
     this.paddle = { x: W / 2 };
     this.particles.forEach((p) => { p.on = false; });
+    this.blasts.length = 0; this.shards.length = 0;
     this.flashes.length = 0;
-    this.ballGlow = 0;
     this.warmSprites();
     this.allBricks = true;
     this.resetBall();
@@ -185,7 +193,7 @@ export class Game {
       const t = this.type[i];
       if (t === NORMAL) bricks.normal++;
       else if (t === TWO_HIT) { bricks.twoHit++; if (this.hits[i] < HITS[TWO_HIT]) bricks.cracked++; }
-      else if (t === BOMB) bricks.bomb++;
+      else if (isBomb(t)) bricks.bomb++;
       else if (t === SOLID) bricks.solid++;
     }
     const powerups = {}, chances = this.level.chances || {};
@@ -209,10 +217,11 @@ export class Game {
 
   newBall(x, y, vx = 0, vy = 0) {
     // px, py: where it was before the last step; dx, dy: where it is drawn; loop: recent paddle hits (loop breaker)
-    return { x, y, vx, vy, px: x, py: y, dx: x, dy: y, trail: [], loop: [] };
+    // glow: brighter for a moment after this ball broke a brick
+    return { x, y, vx, vy, px: x, py: y, dx: x, dy: y, trail: [], loop: [], glow: 0 };
   }
 
-  endPowerups() { this.pills.length = 0; this.effects = {}; this.pw = PW; this.clampPaddle(); }
+  endPowerups() { this.pills.length = 0; this.shots.length = 0; this.effects = {}; this.morph = null; this.pw = PW; this.clampPaddle(); }
 
   resetBall() { // a new ball also ends the power-ups and drops the pills still falling
     this.endPowerups();
@@ -275,6 +284,7 @@ export class Game {
   step(dt) {
     this.rampSpeed(dt);
     this.stepPowerups(dt);
+    this.stepShots(dt);
     for (let i = this.balls.length - 1; i >= 0 && this.state === 'playing'; i--) {
       if (this.stepBall(this.balls[i], dt)) this.balls.splice(i, 1); // fell out
     }
@@ -314,15 +324,68 @@ export class Game {
       else if (p.y - PILL_H / 2 > this.H) this.pills.splice(i, 1);
     }
     tickEffects(this.effects, dt);
-    const target = this.effects.wide ? WIDE_W : PW, rate = (WIDE_W - PW) / GROW_TIME * dt;
+    if (this.morph && !this.effects.gun) this.morph = null; // replaced, or over
+    if (this.morph) { // the paddle shrinks to the cannon's width, then turns into the cannon with a burst of sparks
+      const m = this.morph;
+      m.t = Math.min(1, m.t + dt / GUN_MORPH);
+      const k = Math.min(1, m.t / MORPH_SPLIT), ease = 1 - (1 - k) ** 3;
+      this.pw = m.from + (GUN_W - m.from) * ease;
+      this.clampPaddle();
+      if (m.t >= MORPH_SPLIT && !m.burst) {
+        m.burst = true;
+        for (const side of [-1, 1]) this.burst(this.paddle.x + side * (GUN_W / 2 - 7), this.paddleY + 3, 275);
+        this.sfx('morph');
+      }
+      if (m.t >= 1) this.morph = null;
+      return;
+    }
+    const fx = this.effects, target = fx.wide ? WIDE_W : fx.small ? SMALL_W : fx.gun ? GUN_W : PW, rate = (WIDE_W - PW) / GROW_TIME * dt;
     if (this.pw !== target) {
       this.pw = this.pw < target ? Math.min(target, this.pw + rate) : Math.max(target, this.pw - rate);
       this.clampPaddle();
     }
   }
 
+  // The machine gun fires by itself while it runs: one shot every GUN_INTERVAL, the muzzles taking turns.
+  // A shot hits a brick like a ball does once, and is gone; an unbreakable brick just stops it.
+  stepShots(dt) {
+    for (let i = 0; i < 2; i++) this.recoil[i] = Math.max(0, this.recoil[i] - dt * 8);
+    if (this.effects.gun && !this.morph) {
+      this.gunTimer = (this.gunTimer ?? 0) - dt;
+      if (this.gunTimer <= 0) {
+        this.gunTimer += GUN_INTERVAL;
+        const side = this.gunSide = 1 - (this.gunSide ?? 1);
+        this.shots.push({ x: this.paddle.x + (side ? GUN_MUZZLE : -GUN_MUZZLE), y: this.paddleY - 4 });
+        this.recoil[side] = 1;
+        this.sfx('shot');
+      }
+    } else this.gunTimer = 0; // the first shot comes at once
+    for (let i = this.shots.length - 1; i >= 0 && this.state === 'playing'; i--) {
+      const s = this.shots[i];
+      s.y -= SHOT_SPEED * dt;
+      if (s.y < this.safe.top + TOP || this.shotHits(s)) this.shots.splice(i, 1);
+    }
+  }
+
+  shotHits(s) {
+    const r = Math.floor((s.y - this.rowY0) / CELL);
+    if (r < 0 || r >= this.rows || s.y - (this.rowY0 + r * CELL) > this.brW) return false;
+    for (let c = 0; c < COLS; c++) {
+      if (s.x < this.colX[c] || s.x > this.colX[c] + this.brW) continue;
+      const i = r * COLS + c;
+      if (!this.type[i]) return false;
+      if (this.type[i] === SOLID) { this.sfx('wall'); return true; }
+      this.damageBrick(i, null);
+      return true;
+    }
+    return false;
+  }
+
   applyPowerup(kind, x) {
+    const hadGun = !!this.effects.gun;
     addEffect(this.effects, kind); // a second pill of the same kind starts its time again
+    // the paddle turns into the cannon (see GUN_MORPH), which starts firing when it is done; a second gun pill only adds time
+    if (kind.key === 'gun' && !this.morph && !hadGun) { this.morph = { t: 0, from: this.pw, burst: false }; this.gunTimer = 0; }
     if (kind.key === 'multi') this.splitBall();
     this.pickups.push({ x, y: this.paddleY, life: PICKUP_TIME, label: t(kind.label), hue: kind.hue });
     this.sfx(kind.sound);
@@ -344,7 +407,8 @@ export class Game {
 
   rampSpeed(dt) {
     this.playTime += dt;
-    const speed = this.level.speed * Math.min(1, START_SPEED + (1 - START_SPEED) * this.playTime / RAMP_TIME);
+    const effect = this.effects.slow ? SLOW_FACTOR : this.effects.fast ? FAST_FACTOR : 1;
+    const speed = this.level.speed * effect * Math.min(1, START_SPEED + (1 - START_SPEED) * this.playTime / RAMP_TIME);
     const k = speed / this.speed;
     for (const b of this.balls) { b.vx *= k; b.vy *= k; }
     this.speed = speed;
@@ -412,36 +476,63 @@ export class Game {
         if (dx * dx + dy * dy >= BALL_R * BALL_R) continue;
         if (t === SOLID) { this.sfx('wall'); return true; } // unbreakable: the ball just bounces
         b.loop.length = 0; // the path has changed, so it is no loop
-        if (--this.hits[i] > 0) { // a two-hit brick or a bomb that is not done yet
-          this.changed.push(i);
-          this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME * 0.6 });
-          this.sfx('brick', r);
-          return true;
+        if (this.effects.fire) { // the fireball burns through: every brick it touches breaks at once, and it does not bounce
+          this.hits[i] = 0;
+          this.breakBrick(i, b);
+          if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); return false; }
+          continue;
         }
-        this.breakBrick(i);
-        if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); }
+        this.damageBrick(i, b);
         return true;
       }
     }
     return false;
   }
 
+  // One hit on a brick, from a ball or a shot: a two-hit brick or a bomb counts down, the rest break.
+  damageBrick(i, ball) {
+    const c = i % COLS, r = (i - c) / COLS;
+    if (--this.hits[i] > 0) {
+      this.changed.push(i);
+      this.flashes.push({ x: this.colX[c], y: this.rowY0 + r * CELL, hue: this.hue[i], life: FLASH_TIME * 0.6 });
+      this.sfx('brick', r);
+      return;
+    }
+    this.breakBrick(i, ball);
+    if (this.remaining === 0) { this.state = 'won'; this.endTimer = 0.7; this.sfx('win'); }
+  }
+
   // removes a brick; a bomb takes the bricks around it with it, unbreakable ones and other bombs too
-  breakBrick(i) {
+  // blast: the centre of the bomb that broke it, if a bomb did; such bricks shatter instead of the usual sparks
+  breakBrick(i, ball = null, blast = null) {
     const t = this.type[i], c = i % COLS, r = Math.floor(i / COLS);
-    const rx = this.colX[c], ry = this.rowY0 + r * CELL, bw = this.brW;
+    const rx = this.colX[c], ry = this.rowY0 + r * CELL, bw = this.brW, mx = rx + bw / 2, my = ry + bw / 2;
     this.type[i] = EMPTY; this.hits[i] = 0;
-    if (this.carry[i]) { this.pills.push({ x: rx + bw / 2, y: ry + bw / 2, kind: this.carry[i], phase: 0 }); this.carry[i] = 0; }
+    if (this.carry[i]) { this.pills.push({ x: mx, y: my, kind: this.carry[i], phase: 0 }); this.carry[i] = 0; }
     if (t !== SOLID) this.remaining--;
     this.changed.push(i);
-    this.burst(rx + bw / 2, ry + bw / 2, this.hue[i]);
-    this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME });
-    this.ballGlow = 1;
-    if (t !== BOMB) { this.sfx('brick', r); return; }
+    const hue = t === SOLID ? -1 : isBomb(t) ? 15 : this.hue[i]; // -1: grey shards
+    if (blast || isBomb(t)) this.shatter(mx, my, blast || { x: mx, y: my }, hue);
+    else { this.burst(mx, my, this.hue[i]); this.flashes.push({ x: rx, y: ry, hue: this.hue[i], life: FLASH_TIME }); }
+    if (ball) ball.glow = 1;
+    if (!isBomb(t)) { if (!blast) this.sfx('brick', r); return; }
     this.sfx('bomb');
+    const centre = { x: mx, y: my };
+    this.blasts.push({ x: mx, y: my, life: BLAST_TIME });
     for (let y = r - BOMB_RADIUS; y <= r + BOMB_RADIUS; y++) for (let x = c - BOMB_RADIUS; x <= c + BOMB_RADIUS; x++) {
       if (x < 0 || x >= COLS || y < 0 || y >= this.rows) continue;
-      if (this.type[y * COLS + x]) this.breakBrick(y * COLS + x);
+      if (this.type[y * COLS + x]) this.breakBrick(y * COLS + x, ball, centre);
+    }
+  }
+
+  // A brick breaks into 3 x 3 shards that fly away from the bomb, spin and fall.
+  shatter(x, y, from, hue) {
+    const s = this.brW / 3;
+    for (let k = 0; k < 9 && this.shards.length < MAX_SHARDS; k++) {
+      const sx = x - s + (k % 3) * s, sy = y - s + Math.floor(k / 3) * s;
+      let dx = sx - from.x + (Math.random() - 0.5) * 6, dy = sy - from.y + (Math.random() - 0.5) * 6;
+      const len = Math.hypot(dx, dy) || 1, v = 70 + Math.random() * 60;
+      this.shards.push({ x: sx, y: sy, vx: dx / len * v, vy: dy / len * v, a: 0, spin: (Math.random() - 0.5) * 12, hue, life: SHARD_LIFE });
     }
   }
 
@@ -480,11 +571,17 @@ export class Game {
     for (let i = this.flashes.length - 1; i >= 0; i--) {
       if ((this.flashes[i].life -= dt) <= 0) this.flashes.splice(i, 1);
     }
+    for (let i = this.blasts.length - 1; i >= 0; i--) if ((this.blasts[i].life -= dt) <= 0) this.blasts.splice(i, 1);
+    for (let i = this.shards.length - 1; i >= 0; i--) {
+      const p = this.shards[i];
+      if ((p.life -= dt) <= 0) { this.shards.splice(i, 1); continue; }
+      p.vy += SHARD_FALL * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.spin * dt;
+    }
     for (let i = this.floorHits.length - 1; i >= 0; i--) {
       if ((this.floorHits[i].life -= dt) <= 0) this.floorHits.splice(i, 1);
     }
     const fade = Math.pow(0.001, dt); // about 1/1000 left after a second
-    this.ballGlow *= fade;
+    for (const b of this.balls) b.glow *= fade;
   }
 
   // ---------- loop ----------
@@ -547,7 +644,8 @@ export class Game {
   // Normal: one outline. Two hits: a second, inner outline until the first hit. Unbreakable: grey and striped.
   // Bomb: orange with the hits left written on it.
   brickSprite(hue, type, hits) {
-    const key = `b${type}.${hits}.${type === SOLID || type === BOMB ? 0 : hue}`;
+    const bomb = isBomb(type); // every bomb looks the same and shows the hits it has left
+    const key = bomb ? `bomb.${hits}` : `b${type}.${hits}.${type === SOLID ? 0 : hue}`;
     if (this.sprites[key]) return this.sprites[key];
     const b = this.brPx, pad = Math.ceil(GLOW_PAD * this.k), lw = Math.max(1, Math.round(LINE_PT * this.dpr));
     const c = document.createElement('canvas');
@@ -558,10 +656,10 @@ export class Game {
       g.fillRect(x, y, s, lw); g.fillRect(x, y + s - lw, s, lw);
       g.fillRect(x, y + lw, lw, s - 2 * lw); g.fillRect(x + s - lw, y + lw, lw, s - 2 * lw);
     };
-    const glow = type === SOLID ? null : type === BOMB ? 'rgba(255,90,60,.9)' : hsl(hue, 100, 60);
+    const glow = type === SOLID ? null : bomb ? 'rgba(255,90,60,.9)' : hsl(hue, 100, 60);
     if (glow) {
       g.shadowColor = glow; g.shadowBlur = 9 * this.k;
-      g.strokeStyle = type === BOMB ? 'rgba(255,106,60,.8)' : hsl(hue, 100, 60, 0.8); g.lineWidth = lw;
+      g.strokeStyle = bomb ? 'rgba(255,106,60,.8)' : hsl(hue, 100, 60, 0.8); g.lineWidth = lw;
       g.strokeRect(pad + lw / 2, pad + lw / 2, b - lw, b - lw);
       g.shadowBlur = 0;
       g.clearRect(pad, pad, b, b);
@@ -575,7 +673,7 @@ export class Game {
       for (let k = -b; k < b; k += step) { g.moveTo(pad + k, pad + b); g.lineTo(pad + k + b, pad); }
       g.stroke(); g.restore();
       outline(pad, pad, b, '#9aa0b8');
-    } else if (type === BOMB) {
+    } else if (bomb) {
       g.fillStyle = 'rgba(255,90,60,.35)'; g.fillRect(pad + lw, pad + lw, b - 2 * lw, b - 2 * lw);
       outline(pad, pad, b, '#ff6a3c');
       g.fillStyle = '#ffd9a0'; g.font = `800 ${Math.round(b * 0.58)}px -apple-system, system-ui, sans-serif`;
@@ -598,6 +696,7 @@ export class Game {
     }
     this.ballSprite(); this.paddleSprite();
     for (const kind of Object.values(KINDS)) this.pillGlow(kind.hue);
+    this.fireSprite(); this.cannonSprite(); this.sightSprite(); this.shotSprite();
     this.floorBeams(); this.floorPosts();
   }
 
@@ -647,7 +746,7 @@ export class Game {
     g.beginPath(); g.roundRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H, PILL_H / 2); g.clip();
     g.fillStyle = this.style(hue, 45); g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, PILL_H);
     const split = Math.sin(phase) * PILL_H / 2;
-    g.fillStyle = this.style((hue + 40) % 360, 58);
+    g.fillStyle = kind.negative ? 'rgba(20,4,8,.75)' : this.style((hue + 40) % 360, 58);
     if (Math.cos(phase) > 0) g.fillRect(-PILL_W / 2, -PILL_H / 2, PILL_W, split + PILL_H / 2);
     else g.fillRect(-PILL_W / 2, split, PILL_W, PILL_H / 2 - split);
     g.fillStyle = this.pillShade ??= (() => {
@@ -669,6 +768,130 @@ export class Game {
     }
     g.globalAlpha = 1;
     g.restore();
+  }
+
+  // A glowing ball with a flickering tail of flames behind it: the fireball pickup as it plunges down, and every ball
+  // while the fireball power-up runs. (vx, vy): the direction it moves; the flames trail the other way.
+  // Returns the box it drew in, for the clearing of the next frame.
+  drawFireball(g, x, y, ts, vx = 0, vy = 1) {
+    const t = ts / 1000, len = Math.hypot(vx, vy) || 1, ux = -vx / len, uy = -vy / len; // towards the tail
+    for (let i = 8; i >= 1; i--) {
+      const k = i / 9, wob = Math.sin(t * 18 + i) * 1.2 * k;
+      g.globalAlpha = 0.85 * (1 - k);
+      g.fillStyle = this.style(Math.round(40 - k * 30), Math.round(60 - k * 15));
+      g.beginPath(); g.arc(x + ux * i * 2.2 - uy * wob, y + uy * i * 2.2 + ux * wob, 4.2 * (1 - k * 0.7), 0, 7); g.fill();
+    }
+    g.globalAlpha = 1;
+    const s = this.fireSprite();
+    this.blit(g, s, x - s.w / 2, y - s.h / 2);
+    // the box holds the glow sprite around the ball (12 each way) and the end of the tail
+    const tx = x + ux * 18, ty = y + uy * 18, x0 = Math.min(x, tx) - 12, y0 = Math.min(y, ty) - 12;
+    return [x0, y0, Math.max(x, tx) + 12 - x0, Math.max(y, ty) + 12 - y0];
+  }
+  fireSprite() { // the burning ball with its glow
+    return this.sprite('fire', 24, 24, (g, k) => {
+      g.shadowColor = '#ff7a1a'; g.shadowBlur = 10 * k;
+      const rg = g.createRadialGradient(11, 11, 0.5, 12, 12, 5);
+      rg.addColorStop(0, '#fff8d0'); rg.addColorStop(0.45, '#ffc23a'); rg.addColorStop(1, '#ff4a10');
+      g.fillStyle = rg; g.beginPath(); g.arc(12, 12, 4.6, 0, 7); g.fill();
+    });
+  }
+  // The machine gun paddle: two capsules with a crackling energy coil between them, and a muzzle on each.
+  // The glow of the capsules is a sprite; the coil and the muzzles move, so they are drawn each frame.
+  drawCannon(g, x, y, ts) {
+    const s = this.cannonSprite(), t = ts / 1000;
+    this.blit(g, s, x - s.w / 2, y - 12);
+    g.lineWidth = 1; g.strokeStyle = `hsla(270,100%,75%,${0.6 + 0.4 * Math.sin(t * 20)})`;
+    g.beginPath();
+    for (let k = 0; k <= 14; k++) { const yy = y + 3 + Math.sin(k * 1.6 + t * 30) * 1.6; k ? g.lineTo(x - 7 + k, yy) : g.moveTo(x - 7, yy); }
+    g.stroke();
+    g.fillStyle = '#efe4ff';
+    for (const [i, side] of [[0, -1], [1, 1]]) {
+      const mx = x + side * GUN_MUZZLE, my = y - 2 + this.recoil[i];
+      g.beginPath(); g.arc(mx, my, 1.8, 0, 7); g.fill();
+      if (this.recoil[i] > 0.6) { // muzzle flash
+        g.globalAlpha = (this.recoil[i] - 0.6) / 0.4; g.fillStyle = '#fff';
+        g.beginPath(); g.arc(mx, y - 6, 2.4, 0, 7); g.fill();
+        g.globalAlpha = 1; g.fillStyle = '#efe4ff';
+      }
+    }
+  }
+  cannonSprite() {
+    return this.sprite('cannon', GUN_W + 24, 26, (g, k) => {
+      g.shadowColor = '#a46bff'; g.shadowBlur = 11 * k;
+      g.strokeStyle = '#d9c0ff'; g.lineWidth = 1.4;
+      const o = 12; // the sprite's left edge is 12 points left of the paddle, its top 12 above
+      g.beginPath(); g.roundRect(o, 11, 15, 8, 3); g.stroke();
+      g.beginPath(); g.roundRect(o + GUN_W - 15, 11, 15, 8, 3); g.stroke();
+    });
+  }
+  shotSprite() { // a plasma bolt
+    return this.sprite('shot', 8, 14, (g, k) => {
+      g.shadowColor = '#c9a0ff'; g.shadowBlur = 6 * k;
+      g.fillStyle = '#e6d6ff'; g.fillRect(3.2, 3, 1.6, 7);
+    });
+  }
+  // The machine gun pickup: a red gun sight turning as it falls, with a pulsing dot in the middle.
+  drawSight(g, x, y, ts) {
+    const s = this.sightSprite(), t = ts / 1000;
+    g.save(); g.translate(x, y); g.rotate(t * 1.5);
+    g.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
+    g.restore();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 1 + 0.4 * Math.sin(t * 10), 0, 7); g.fill();
+  }
+  sightSprite() {
+    return this.sprite('sight', 24, 24, (g, k) => {
+      g.translate(12, 12);
+      g.shadowColor = '#ff5f6d'; g.shadowBlur = 7 * k;
+      g.strokeStyle = '#ff7d88'; g.lineWidth = 1;
+      g.beginPath(); g.arc(0, 0, 5.5, 0, 7); g.stroke();
+      for (let q = 0; q < 4; q++) { g.rotate(Math.PI / 2); g.beginPath(); g.moveTo(0, -7.5); g.lineTo(0, -3.5); g.stroke(); }
+    });
+  }
+
+  drawExplosions(g) {
+    if (this.shards.length) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      g.lineWidth = 0.7;
+      for (const p of this.shards) {
+        const c = Math.cos(p.a), sn = Math.sin(p.a), k = this.k;
+        g.setTransform(c * k, sn * k, -sn * k, c * k, (p.x + this.offX) * k, (p.y + this.offY) * k);
+        g.globalAlpha = p.life / SHARD_LIFE;
+        g.fillStyle = p.hue < 0 ? 'rgba(154,160,184,.35)' : this.style(p.hue, 60, 0.3);
+        g.fillRect(-1.9, -1.9, 3.8, 3.8);
+        g.strokeStyle = p.hue < 0 ? '#9aa0b8' : this.style(p.hue, 70);
+        g.strokeRect(-1.9, -1.9, 3.8, 3.8);
+        if (p.x < x0) x0 = p.x;
+        if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y;
+        if (p.y > y1) y1 = p.y;
+      }
+      g.setTransform(this.k, 0, 0, this.k, this.offX * this.k, this.offY * this.k);
+      g.globalAlpha = 1;
+      this.mark(x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8);
+    }
+    if (!this.blasts.length) return;
+    g.globalCompositeOperation = 'lighter';
+    for (const b of this.blasts) {
+      const k = 1 - b.life / BLAST_TIME, r = 6 + k * BLAST_RING;
+      g.globalAlpha = (1 - k) ** 3; g.fillStyle = '#fff0dc';
+      g.beginPath(); g.arc(b.x, b.y, 6 + k * 10, 0, 7); g.fill();
+      g.globalAlpha = (1 - k) * 0.35; g.strokeStyle = '#ffb070'; g.lineWidth = 3 * (1 - k) + 4; // the ring's soft glow
+      g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
+      g.globalAlpha = 1 - k; g.strokeStyle = '#ffc896'; g.lineWidth = 2.2 * (1 - k) + 0.5;
+      g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
+      this.mark(b.x - BLAST_RING - 12, b.y - BLAST_RING - 12, BLAST_RING * 2 + 24, BLAST_RING * 2 + 24);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  drawHitGlow(g, bs, b, off) { // brighter and bigger for a moment after the ball broke a brick
+    const sc = 1 + b.glow * 0.7;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = b.glow;
+    g.drawImage(bs.c, b.dx - off * sc, b.dy - off * sc, bs.w * sc, bs.h * sc);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    this.mark(b.dx - off * sc, b.dy - off * sc, bs.w * sc, bs.h * sc);
   }
 
   coreSprite() { // 17 points, with a glow that fits inside the sprite
@@ -789,7 +1012,7 @@ export class Game {
     if (x1 > x0 && y1 > y0) this.drawn.push(x0, y0, x1 - x0, y1 - y0);
   }
 
-  style(hue, light) { const key = hue * 100 + light; return this.styles[key] ??= hsl(hue, 100, light); }
+  style(hue, light, a = 1) { const key = (hue * 101 + light) * 11 + Math.round(a * 10); return this.styles[key] ??= hsl(hue, 100, light, a); } // a number key: no new strings per frame
 
   // ---------- render ----------
   render(ts) {
@@ -800,6 +1023,8 @@ export class Game {
     for (let i = 0; i < d.length; i += 4) g.clearRect(d[i], d[i + 1], d[i + 2], d[i + 3]);
     d.length = 0;
     g.setTransform(k, 0, 0, k, this.offX * k, this.offY * k);
+
+    this.drawExplosions(g);
 
     // particles
     g.globalCompositeOperation = 'lighter';
@@ -825,10 +1050,21 @@ export class Game {
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
 
+    if (this.shots.length) {
+      const sp = this.shotSprite();
+      for (const s of this.shots) { this.blit(g, sp, s.x - sp.w / 2, s.y - 3); this.mark(s.x - sp.w / 2, s.y - 3, sp.w, sp.h); }
+    }
+
     // balls with their trails, the floor, the paddle
     if (this.state === 'playing' || this.state === 'ready' || this.state === 'paused') {
-      const bs = this.ballSprite(), off = bs.w / 2, reach = off * 1.7; // the glow after a hit makes the sprite up to 1.7 times as big
+      const fire = !!this.effects.fire; // every ball burns, also the ones a multiball adds while it runs
+      const bs = fire ? this.fireSprite() : this.ballSprite(), off = bs.w / 2, reach = off * 1.7; // the glow after a hit makes the sprite up to 1.7 times as big
       for (const b of this.balls) {
+        if (fire) {
+          this.mark(...this.drawFireball(g, b.dx, b.dy, ts, b.vx, b.vy));
+          if (b.glow > 0.02) this.drawHitGlow(g, bs, b, off);
+          continue;
+        }
         const n = b.trail.length / 2;
         for (let i = 0; i < n - 1; i++) {
           g.globalAlpha = (i / n) * 0.3;
@@ -846,22 +1082,30 @@ export class Game {
           if (ty > by1) by1 = ty;
         }
         this.mark(bx0 - reach, by0 - reach, bx1 - bx0 + reach * 2, by1 - by0 + reach * 2);
-        if (this.ballGlow > 0.02) { // brighter and bigger for a moment after a hit
-          const sc = 1 + this.ballGlow * 0.7;
-          g.globalCompositeOperation = 'lighter'; g.globalAlpha = this.ballGlow;
-          g.drawImage(bs.c, b.dx - off * sc, b.dy - off * sc, bs.w * sc, bs.h * sc);
-          g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-        }
+        if (b.glow > 0.02) this.drawHitGlow(g, bs, b, off);
       }
       this.drawFloor(g, ts);
       // the wider paddle blinks during its last seconds
-      const wide = this.effects.wide, blink = wide && wide < WARN_TIME && Math.floor(wide * 6) % 2 === 0;
+      const left = this.effects.wide || this.effects.small || this.effects.gun, blink = left && left < WARN_TIME && Math.floor(left * 6) % 2 === 0;
       if (blink) g.globalAlpha = 0.4;
-      this.drawPaddle(g, this.paddle.x, this.paddleY, this.pw);
+      const m = this.effects.gun ? this.morph : null;
+      if (!this.effects.gun || (m && m.t < MORPH_SPLIT)) this.drawPaddle(g, this.paddle.x, this.paddleY, this.pw);
+      else if (m) { // the paddle fades into the cannon
+        const c = (m.t - MORPH_SPLIT) / (1 - MORPH_SPLIT), a = g.globalAlpha;
+        g.globalAlpha = a * (1 - c); this.drawPaddle(g, this.paddle.x, this.paddleY, this.pw);
+        g.globalAlpha = a * c; this.drawCannon(g, this.paddle.x, this.paddleY, ts);
+        g.globalAlpha = a;
+      } else this.drawCannon(g, this.paddle.x, this.paddleY, ts);
       g.globalAlpha = 1;
-      this.mark(this.paddle.x - this.pw / 2 - 20, this.paddleY - 20, this.pw + 40, PH + 40);
+      this.mark(this.paddle.x - this.pw / 2 - 20, this.paddleY - 20, this.pw + 40, PH + 40); // also covers the cannon
     }
-    for (const p of this.pills) { this.drawPill(g, p.x, p.y, p.phase, BY_CODE[p.kind]); this.mark(p.x - PILL_W / 2 - 8, p.y - PILL_H / 2 - 8, PILL_W + 16, PILL_H + 16); } // = the glow sprite
+    for (const p of this.pills) {
+      const kind = BY_CODE[p.kind];
+      if (kind.look === 'fireball') { this.mark(...this.drawFireball(g, p.x, p.y, ts)); continue; }
+      if (kind.look === 'sight') { this.drawSight(g, p.x, p.y, ts); this.mark(p.x - 13, p.y - 13, 26, 26); continue; }
+      this.drawPill(g, p.x, p.y, p.phase, kind);
+      this.mark(p.x - PILL_W / 2 - 8, p.y - PILL_H / 2 - 8, PILL_W + 16, PILL_H + 16); // = the glow sprite
+    }
     for (const p of this.pickups) { // a ring where it was caught, and the name floating up
       const age = PICKUP_TIME - p.life;
       if (age < 0.45) {

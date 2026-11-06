@@ -9,7 +9,7 @@ globalThis.cancelAnimationFrame = () => {};
 globalThis.document = { createElement: () => ({ getContext: () => ctx, width: 0, height: 0 }) };
 
 const { Game, W } = await import('../src/game/game.js');
-const { setLevels, NORMAL, TWO_HIT, SOLID, BOMB } = await import('../src/game/levels.js');
+const { setLevels, NORMAL, TWO_HIT, SOLID, BOMB, BOMB1 } = await import('../src/game/levels.js');
 const STEP = 1 / 120, BALL_R = 4, PW = 64, PH = 6, MAX_ANGLE = 1.08;
 
 // Test levels, so the tests do not depend on the levels being designed in levels/ (these are the five first drafts).
@@ -245,11 +245,11 @@ test('effects: a brick hit reports its sound and sets off the flash, a paddle hi
   assert.ok(g.hitBrick());
   assert.deepEqual(sounds, ['brick']);
   assert.equal(g.flashes.length, 1);
-  assert.equal(g.ballGlow, 1);
+  assert.equal(g.ball.glow, 1, 'the ball that broke it lights up');
   g.render(0);
   g.updateParticles(0.5);
   assert.equal(g.flashes.length, 0);
-  assert.ok(g.ballGlow < 0.1);
+  assert.ok(g.ball.glow < 0.1);
   g.paddle.x = W / 2;
   Object.assign(g.ball, { x: W / 2, y: g.paddleY - BALL_R + 1, vx: 0, vy: 100 });
   g.hitPaddle();
@@ -332,7 +332,7 @@ test('loop breaker: a paddle that always hits dead centre still clears every lev
 test('drawing: a hit redraws only its cell, and every sprite the level needs is made before play', () => {
   const g = rowLevel([[4, BOMB], [5, TWO_HIT], [7, NORMAL]]);
   const keys = Object.keys(g.sprites);
-  for (let h = 1; h <= 5; h++) assert.ok(keys.includes(`b${BOMB}.${h}.0`), `bomb with ${h} hits left is ready`);
+  for (let h = 1; h <= 5; h++) assert.ok(keys.includes(`bomb.${h}`), `bomb with ${h} hits left is ready`);
   assert.ok(keys.some((k) => k.startsWith(`b${TWO_HIT}.1.`)), 'the cracked two-hit brick is ready');
   g.render(0);
   assert.equal(g.allBricks, false);
@@ -346,7 +346,7 @@ test('drawing: a hit redraws only its cell, and every sprite the level needs is 
 function wideLevel(n, cells) {
   const row = Array(21).fill(0);
   for (const [x, t] of cells) row[x] = t;
-  setLevels([{ id: 1, speed: 270, grid: [row, Array(21).fill(0)], powerups: { wide: n, slow: 2 } }]);
+  setLevels([{ id: 1, speed: 270, grid: [row, Array(21).fill(0)], powerups: { wide: n, laser: 2 } }]);
 }
 
 test('power-ups: hidden in different breakable bricks, never unbreakable ones, the same for the same seed', () => {
@@ -402,7 +402,7 @@ test('test play status: bricks left by type and power-ups left to find', () => {
   assert.deepEqual(s.bricks, { normal: 2, twoHit: 1, cracked: 0, bomb: 1, solid: 1 });
   assert.equal(s.remaining, 4);
   assert.deepEqual(s.powerups.wide, { total: 2, fixed: 2, chance: 0, extra: 0, built: true, hidden: 2, falling: 0 });
-  assert.equal(s.powerups.slow.built, false, 'kinds the game does not have yet are reported, never hidden');
+  assert.equal(s.powerups.laser.built, false, 'kinds the game does not have yet are reported, never hidden');
   hitAt(g, 4);
   assert.equal(g.status().bricks.cracked, 1);
   for (const x of [3, 4, 6]) if (g.type[x]) hitAt(g, x);
@@ -475,10 +475,7 @@ test('clash rule: only kinds that change the same thing replace each other', () 
   const fx = {};
   addEffect(fx, KINDS.wide); addEffect(fx, KINDS.floor);
   assert.deepEqual(Object.keys(fx).sort(), ['floor', 'wide'], 'wider paddle and floor at the same time');
-  const small = { key: 'small', time: 10, group: 'paddle' };
-  KINDS.small = small;
-  addEffect(fx, small);
-  delete KINDS.small;
+  addEffect(fx, KINDS.small);
   assert.deepEqual(Object.keys(fx).sort(), ['floor', 'small'], 'smaller paddle replaces the wider one');
 });
 
@@ -488,7 +485,7 @@ test('chances: one more of a kind when its chance comes up, the same for the sam
   assert.deepEqual(always.extra, { multi: 1 });
   assert.deepEqual(rollCounts({}, { multi: 10 }, () => 0.5).counts, {}, '50 is not under 10');
   assert.deepEqual(rollCounts({}, { multi: 10 }, () => 0.05).counts, { multi: 1 });
-  assert.deepEqual(rollCounts({}, { gun: 100 }, () => 0).counts, {}, 'kinds the game does not have are skipped');
+  assert.deepEqual(rollCounts({}, { laser: 100 }, () => 0).counts, {}, 'kinds the game does not have are skipped');
 });
 
 test('floor: a ball coming up from the floor bounces down on the paddle underside', () => {
@@ -502,4 +499,145 @@ test('floor: a ball coming up from the floor bounces down on the paddle undersid
   assert.ok(g.ball.y >= g.paddleY + PH + BALL_R - 1e-9, 'never through the paddle');
   for (let i = 0; i < 60; i++) g.step(STEP);
   assert.equal(g.state, 'playing', 'and the floor sends it up again');
+});
+
+test('slow and fast: the balls slow down or speed up for a while; the newest one wins', () => {
+  const g = newGame();
+  g.launch(1);
+  g.playTime = 100; // past the ramp
+  g.step(STEP);
+  const full = g.speed;
+  g.applyPowerup(KINDS.slow, W / 2); g.step(STEP);
+  assert.ok(Math.abs(g.speed - full * 0.65) < 1e-6);
+  assert.ok(Math.abs(Math.hypot(g.ball.vx, g.ball.vy) - g.speed) < 1e-6);
+  g.applyPowerup(KINDS.fast, W / 2); g.step(STEP);
+  assert.equal(g.effects.slow, undefined, 'fast replaced slow');
+  assert.ok(Math.abs(g.speed - full * 1.3) < 1e-6);
+  g.effects.fast = 0.001; g.step(STEP); g.step(STEP);
+  assert.ok(Math.abs(g.speed - full) < 1e-6, 'back to normal');
+});
+
+test('tiny paddle: narrower for a while, and it replaces the wider one', () => {
+  const g = newGame();
+  g.applyPowerup(KINDS.wide, W / 2);
+  g.applyPowerup(KINDS.small, W / 2);
+  assert.equal(g.effects.wide, undefined);
+  for (let i = 0; i < 120; i++) g.stepPowerups(STEP);
+  assert.equal(g.pw, 44);
+});
+
+test('fireball: burns straight through breakable bricks, two-hit ones and bombs too, but bounces off unbreakable ones', () => {
+  setLevels([{ id: 1, speed: 270, grid: [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, TWO_HIT, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BOMB, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [NORMAL, 0, 0, 0, 0, 0, 0, 0, 0, 0, SOLID, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], powerups: {} }]); // one more brick, so the level is not cleared
+  const g = newGame(0);
+  setLevels(TEST_LEVELS);
+  g.applyPowerup(KINDS.fire, W / 2);
+  const x = g.colX[10] + g.brW / 2;
+  Object.assign(g.ball, { x, y: g.rowY0 - 10, vx: 0, vy: 150 }); // coming down from above, through the column
+  for (let i = 0; i < 200 && g.ball.vy > 0; i++) g.step(STEP);
+  assert.deepEqual([0, 1, 2, 3].map((r) => g.type[r * 21 + 10]), [0, 0, 0, 0], 'all burnt in one pass');
+  assert.equal(g.type[4 * 21 + 10], SOLID);
+  assert.ok(g.ball.vy < 0, 'turned at the unbreakable brick');
+});
+
+test('fireball and multiball: every ball burns, whichever came first', () => {
+  for (const order of [['multi', 'fire'], ['fire', 'multi']]) {
+    const g = newGame();
+    g.launch(1);
+    for (const key of order) g.applyPowerup(KINDS[key], W / 2);
+    assert.equal(g.balls.length, 3);
+    assert.ok(g.effects.fire > 0, `${order.join(' then ')}: the fire runs for all balls`);
+    const b = g.balls[2], c = Math.floor(b.x / 16);
+    g.type[c] = NORMAL; g.hits[c] = 1;
+    Object.assign(b, { x: g.colX[c] + g.brW / 2, y: g.rowY0 + g.brW / 2 });
+    assert.equal(g.hitBrick(b), false, 'a new ball goes straight through too');
+    assert.equal(g.type[c], 0);
+  }
+});
+
+test('machine gun: shots from the two muzzles in turn, 4 a second, each one hit; unbreakable bricks stop them', () => {
+  setLevels([{ id: 1, speed: 270, grid: [
+    Array.from({ length: 21 }, (_, x) => (x === 0 ? NORMAL : x === 9 ? TWO_HIT : x === 11 ? SOLID : 0))], powerups: {} }]);
+  const g = newGame(0);
+  setLevels(TEST_LEVELS);
+  g.launch(1);
+  Object.assign(g.ball, { x: 300, y: 300, vx: 0, vy: 0 }); // keep the ball out of the way
+  g.paddle.x = W / 2;
+  g.applyPowerup(KINDS.gun, W / 2);
+  while (g.morph) g.stepPowerups(STEP); // the paddle turns into the cannon first
+  const xs = [];
+  for (let i = 0; i < 120; i++) { const n = g.shots.length; g.stepShots(STEP); if (g.shots.length > n) xs.push(g.shots.at(-1).x - g.paddle.x); g.ball.y = 300; }
+  assert.equal(xs.length, 4, '4 shots in a second');
+  assert.deepEqual(xs.map(Math.sign), [-1, 1, -1, 1], 'left and right in turn');
+  // muzzles at 168 +- 14 = 154 and 182: column 9 is under the left one, column 11 under the right
+  for (let i = 0; i < 240; i++) { g.stepShots(STEP); g.ball.y = 300; }
+  assert.equal(g.type[9], 0, 'the two-hit brick took two shots');
+  assert.equal(g.type[11], SOLID, 'the unbreakable one stays');
+  for (let i = 0; i < 8 * 120 + 1; i++) { g.stepPowerups(STEP); g.stepShots(STEP); }
+  assert.equal(g.effects.gun, undefined, 'over after 8 s');
+});
+
+test('machine gun: a paddle power-up, so it replaces BIG or TINY', () => {
+  const g = newGame();
+  g.applyPowerup(KINDS.wide, W / 2);
+  g.applyPowerup(KINDS.gun, W / 2);
+  assert.equal(g.effects.wide, undefined);
+  for (let i = 0; i < 120; i++) g.stepPowerups(STEP);
+  assert.equal(g.pw, 44);
+});
+
+test('machine gun: caught with a wide paddle, the paddle turns into the cannon within half a second, then fires', () => {
+  const g = newGame();
+  g.launch(1);
+  g.applyPowerup(KINDS.wide, W / 2);
+  for (let i = 0; i < 60; i++) g.stepPowerups(STEP);
+  assert.equal(g.pw, 96);
+  g.applyPowerup(KINDS.gun, W / 2);
+  assert.ok(g.morph, 'turning');
+  g.stepPowerups(STEP); g.stepShots(STEP);
+  assert.equal(g.shots.length, 0, 'no shots while it turns');
+  let t = 0;
+  while (g.morph && t < 2) { g.stepPowerups(STEP); g.stepShots(STEP); t += STEP; }
+  assert.ok(t <= 0.5, `done in ${t.toFixed(2)} s`);
+  assert.equal(g.pw, 44);
+  g.stepPowerups(STEP); g.stepShots(STEP);
+  assert.equal(g.shots.length, 1, 'the first shot right after');
+  g.applyPowerup(KINDS.gun, W / 2);
+  assert.equal(g.morph, null, 'a second gun pill only adds time');
+});
+
+test('bombs: they blow after 1, 2, 3 or 5 hits', async () => {
+  const { BOMB1, BOMB2, BOMB3, BOMB } = await import('../src/game/levels.js');
+  for (const [type, hits] of [[BOMB1, 1], [BOMB2, 2], [BOMB3, 3], [BOMB, 5]]) {
+    const g = rowLevel([[10, type], [11, NORMAL], [15, NORMAL]]);
+    for (let i = 1; i < hits; i++) { hitAt(g, 10); assert.equal(g.type[10], type, `holds after ${i} of ${hits}`); }
+    hitAt(g, 10);
+    assert.deepEqual([g.type[10], g.type[11]], [0, 0], `blows after ${hits} and takes its neighbour`);
+  }
+});
+
+test('drawing: the box cleared around a fireball holds its whole glow, whichever way it moves', () => {
+  const g = newGame();
+  const fake = new Proxy({}, { get: (t, k) => (k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
+  for (const [vx, vy] of [[0, 1], [1, 0], [-1, -1], [0, 0]]) {
+    const [x0, y0, w, h] = g.drawFireball(fake, 100, 200, 0, vx, vy);
+    assert.ok(x0 <= 88 && y0 <= 188 && x0 + w >= 112 && y0 + h >= 212, `moving ${vx},${vy}: the ball's glow is inside`);
+  }
+});
+
+test('bomb explosion: a flash and ring, and the bricks in the blast shatter into pieces that fall away', () => {
+  const g = rowLevel([[9, NORMAL], [10, BOMB1], [11, SOLID], [15, NORMAL]]);
+  hitAt(g, 10);
+  assert.equal(g.blasts.length, 1);
+  assert.equal(g.shards.length, 27, '9 pieces for each of the three bricks');
+  const left = g.shards.filter((p) => p.x < g.colX[10]);
+  assert.ok(left.every((p) => p.vx < 3), 'the pieces left of the bomb fly left');
+  g.updateParticles(0.3);
+  assert.ok(g.shards.some((p) => p.vy > 0), 'and they fall');
+  g.render(0);
+  g.updateParticles(1);
+  assert.equal(g.shards.length, 0); assert.equal(g.blasts.length, 0);
 });

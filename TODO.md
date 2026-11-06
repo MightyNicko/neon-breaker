@@ -57,7 +57,7 @@
 
 | ID | Uppgift | Prio | Komplexitet | Status |
 |----|---------|------|-------------|--------|
-| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Pågår – gemensamt system i src/game/powerups.js; bredare paddel, multiboll och golv är byggda, övriga sorter återstår |
+| S1 | Skapa upgrades i form av fallande föremål | 2 | 3 | Klar – alla power-ups byggda; gemensamt system i src/game/powerups.js |
 | S2 | Klara en bana och få 1–3 stjärnor (grund att bestämma; förslaget "bollar kvar" avvisat av användaren) | 2 | 2 | Öppen – beslut krävs |
 | S3 | Ändra hur liv fungerar (nuvarande: 5 liv, +1 per 20 min, ändringen ej specificerad) | 2 | 2 | Ersatt av S13 och S14 |
 | S4 | Utmaningsbanor: vissa banor (t.ex. var 10:e) får större ruta på kartan; klara banan på tid för in-game valuta | 3 | 3 | Öppen (kräver valuta, jfr M1) |
@@ -67,7 +67,7 @@
 | S8 | Mål bortom att klara banan: poäng, valuta, belöningar (jfr S4, M1) | 3 | 3 | Öppen |
 | S9 | Minska bollens hastighet när en bana startar (jfr S5) | 1 | 1 | Klar – varje boll börjar på 75 % av banans fart |
 | S10 | Välj bollens riktning vid start: tryck på höger sida av skärmen skickar den åt höger, vänster sida åt vänster | 2 | 1 | Klar |
-| S11 | Ny power-up: skydd bakom paddeln, ett golv som studsar tillbaka bollar som missas; bra kombo med multiboll | 2 | 2 | Klar i spelet och editorn ("Floor shield", bärnstensfärgat piller F) – laserstaket (förslag D), 15 s, blinkar de sista 2 s, studsar alla bollar; en boll som kommer underifrån studsar ned på paddelns undersida |
+| S11 | Ny power-up: skydd bakom paddeln, ett golv som studsar tillbaka bollar som missas; bra kombo med multiboll | 2 | 2 | Klar i spelet och editorn ("Floor shield", bärnstensfärgat piller G, texten GUARD) – laserstaket, 15 s, blinkar de sista 2 s, studsar alla bollar; en boll som kommer underifrån studsar ned på paddelns undersida |
 | S12 | Power-ups med procentchans: en bana kan ha t.ex. multiboll bockad med 10 %, då är det 10 % chans att den finns med när banan startar; utöver de fasta antalen, så att banor inte känns statiska vid omspel | 2 | 2 | Klar – kryssruta och procent per power-up i editorn; en start lägger till en till av sorten om chansen slår in; fältet chances i banfilen |
 | S13 | Liv tas bort ur spelet och ersätts av Cores: max 5, en ny var 20:e minut som i dag; de 3 bollarna per bana försvinner | 1 | 2 | Klar – liv och de 3 bollarna borttagna; sparade liv blir Cores. |
 | S14 | Missad boll: meddelande "Du förlorade en Core", sedan valen "Use a Core to continue" eller "Cancel" tillbaka till kartan; man kan fortsätta på banan tills alla Cores är slut | 1 | 2 | Klar – beslutat: missen är gratis, "Använd en Core och fortsätt" kostar 1, Avbryt och Avsluta i pausmenyn är gratis; utan Cores är banan slut (reklam kanske senare); minst 1 Core krävs för att starta en bana |
@@ -102,5 +102,6 @@
 | U5 | Byt benämningen "upgrades" till "Power-Ups" (i TODO, S1 och all kommande text/kod) | 3 | 1 | Öppen |
 | U6 | Bredda kartan så att hela skärmbredden utnyttjas på iPad (idag en smal kolumn med tomma sidor) | 1 | 2 | Klar |
 | U7 | Skärmskakning som inställning, avstängd från början | 1 | 1 | Struken – skakningen är borttagen helt, ingen inställning |
-| U8 | Texten som visas när paddel-power-upen fångas byts från BREDARE/WIDE till EXTRA, så att den stämmer med E:et på pillret | 3 | 1 | Klar |
+| U8 | Texten som visas när paddel-power-upen fångas byts från BREDARE/WIDE till EXTRA, så att den stämmer med E:et på pillret | 3 | 1 | Ersatt – paddelns power-up heter nu B och BIG |
 | U9 | Infotips för nya spelare: varje ny mekanik (rutsort, power-up, Cores m.m.) förklaras första gången spelaren möter den. Vid första start frågar spelet om man har spelat tidigare; svarar man ja stängs tipsen av | 2 | 2 | Öppen – förslag: tipsen går även att slå på/av under Inställningar |
+| U10 | Svenska texter för power-ups (i dag samma som de engelska: BIG, TINY, FAST, SLOW, MULTIBALL, GUARD, FIRE, GUN) | 3 | 1 | Öppen |

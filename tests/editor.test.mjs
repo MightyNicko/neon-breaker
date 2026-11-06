@@ -14,6 +14,7 @@ test('format: a level survives save and load, with every brick type and power-up
   l.cells = C.paint(l.cells, [[1, 1]], C.TWO_HIT);
   l.cells = C.paint(l.cells, [[2, 2]], C.SOLID);
   l.cells = C.paint(l.cells, [[4, 4]], C.BOMB);
+  l.cells = C.paint(l.cells, [[5, 4]], C.BOMB1); l.cells = C.paint(l.cells, [[6, 4]], C.BOMB2); l.cells = C.paint(l.cells, [[7, 4]], C.BOMB3);
   l.powerups.wide = 2; l.powerups.fast = 1; l.chances.multi = 10;
   const text = C.toFile(l), back = C.fromFile(text);
   assert.deepEqual(back.cells, l.cells);
