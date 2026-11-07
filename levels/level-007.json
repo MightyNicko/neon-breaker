@@ -2,33 +2,28 @@
   "format": 1,
   "id": 7,
   "zone": 1,
-  "speed": 250,
+  "speed": 270,
   "grid": [
     ".....................",
     ".....................",
     ".....................",
-    ".XXXXXXXXXXXXXXXXXXX.",
-    ".X.................X.",
-    ".X.XXXXXXXXXXXXXXX.X.",
-    ".X.X.............X.X.",
-    ".X.X.XXXXXXXXXXX.X.X.",
-    ".X.X.X.........X.X.X.",
-    ".X.X.X.XXXXXXX.X.X.X.",
-    ".X.X.X.X.....X.X.X.X.",
-    ".X.X.X.X.XXX.X.X.X.X.",
-    ".X.X.X.X.X1X.X.X.X.X.",
-    ".X.X.X.X.X.X.X.X.X.X.",
-    ".X.X.X.X.X...X.X.X.X.",
-    ".X.X.X.X.XXXXX.X.X.X.",
-    ".X.X.X.X.......X.X.X.",
-    ".X.X.X.XXXXXXXXX.X.X.",
-    ".X.X.X...........X.X.",
-    ".X.X.XXXXXXXXXXXXX.X.",
-    ".X.X...............X.",
-    ".X.XXXXXXXXXXXXXXXXX."
+    ".....................",
+    ".....................",
+    ".....................",
+    ".....................",
+    ".....X.X.X.X.X.X.....",
+    ".....1.1.1.1.1.1.....",
+    ".....................",
+    ".....................",
+    ".....X.X.X.X.X.X.....",
+    ".....1.1.1.1.1.1.....",
+    ".....................",
+    ".....................",
+    ".....X.X.X.X.X.X.....",
+    ".....1.1.1.1.1.1....."
   ],
   "powerups": {
-    "wide": 0,
+    "wide": 1,
     "slow": 0,
     "multi": 0,
     "floor": 0,
@@ -38,25 +33,5 @@
     "fast": 0
   },
   "chances": {},
-  "test": {
-    "date": "2026-11-06",
-    "playable": false,
-    "difficulty": 5,
-    "notes": [
-      "Too hard: the bot cleared it in 19 of 30 tries within 15 minutes."
-    ],
-    "bot": {
-      "runs": 30,
-      "cleared": 19,
-      "fastestSeconds": 22,
-      "averageSeconds": 198,
-      "slowestSeconds": 811,
-      "longestGapSeconds": 900,
-      "notCleared": 11,
-      "limitSeconds": 900,
-      "misses": 75,
-      "mostBalls": 1,
-      "problems": 0
-    }
-  }
+  "test": null
 }
