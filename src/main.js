@@ -195,9 +195,10 @@ function playTest() {
   game.start(0, seedOpt());
 }
 
-function tryPlay(n) {
+// Starting a level from the map costs a Core; going straight on to the next level after clearing one is free.
+function tryPlay(n, { free = false } = {}) {
   cores.refresh(state);
-  if (!dev('infiniteCores')) { // starting a level costs a Core
+  if (!free && !dev('infiniteCores')) {
     if (state.cores <= 0) { noCores(); return; }
     cores.spendCore(state);
     storage.save(state);
@@ -248,7 +249,7 @@ function resizeGame() {
 
 const coreIcon = () => coreSvg(true);
 
-// Starting a level costs a Core, a miss is free, and going on after it costs one more. With none left the level ends. Test play just goes on.
+// Starting a level from the map costs a Core, a miss is free, and going on after it costs one more. With none left the level ends. Test play just goes on.
 function onMiss() {
   if (testLevel) { game.continueBall(); return; }
   audio.setMusic(false);
@@ -289,7 +290,7 @@ const game = new Game($('game'), {
     showModal({
       title: t('complete_title'),
       buttons: [
-        ...(hasNext ? [{ label: t('next_level'), primary: true, icon: coreIcon, onClick: () => tryPlay(currentLevel + 1) }] : []),
+        ...(hasNext ? [{ label: t('next_level'), primary: true, onClick: () => tryPlay(currentLevel + 1, { free: true }) }] : []),
         { label: t('map'), primary: !hasNext, onClick: toMap },
       ],
     });
